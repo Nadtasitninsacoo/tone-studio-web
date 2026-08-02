@@ -2,7 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import type { MonitorScope } from '@/lib/ampStore';
+import { setRigSettings, type MonitorScope } from '@/lib/ampStore';
+import { loadRig } from '@/lib/rigStorage';
 import { useInputDevices } from '@/hooks/useInputDevices';
 import { useMixer } from '@/hooks/useMixer';
 import { useRecorder } from '@/hooks/useRecorder';
@@ -87,6 +88,27 @@ function RecorderProvider({ children }: { children: ReactNode }) {
     },
     [addTake],
   );
+
+  /**
+   * Restore the saved rig, once, after mount.
+   *
+   * **After mount, never during render.** Every route is prerendered, so a rig read from
+   * storage while rendering exists on the client and not on the server — a hydration
+   * mismatch, and the same reason `lib/theme.ts` reads its own storage in an effect. The
+   * store starts on `DEFAULT_RIG`, which is also the server snapshot, and this replaces it
+   * a tick later; both engines are already subscribed and push the change into their graphs.
+   *
+   * Guarded by a ref rather than by a dependency, because it must not run again when the
+   * player changes something — restoring over a live edit is the one thing worse than not
+   * restoring at all.
+   */
+  const hasRestoredRig = useRef(false);
+  useEffect(() => {
+    if (hasRestoredRig.current) return;
+    hasRestoredRig.current = true;
+    const stored = loadRig();
+    if (stored) setRigSettings(stored.rig);
+  }, []);
 
   const recorder = useRecorder(handleTakeReady);
   const { arm, activeDeviceId } = recorder;

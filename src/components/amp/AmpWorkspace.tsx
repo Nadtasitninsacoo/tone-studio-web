@@ -21,6 +21,7 @@ import { VocalRack } from './VocalRack';
 import { KeysRack } from './KeysRack';
 import { BrassRack } from './BrassRack';
 import { RigMixer } from './RigMixer';
+import { RigSaveButton } from './RigSaveButton';
 
 /**
  * AmpWorkspace — the tone page: one input, three racks, all three live.
@@ -220,6 +221,10 @@ export function AmpWorkspace() {
           {/* The sound stays here until someone presses the matching button on another
               page — navigating never moves it. See `MonitorHandover`. */}
           <MonitorHandover scope="recorder" here="หน้านี้" there="หน้ามิกเซอร์" />
+
+          {/* All six racks, one press. Not the same as the rack's own SAVE CURRENT, which
+              keeps a named guitar preset — this keeps the desk as it stands. */}
+          <RigSaveButton />
 
           {/* Second row of the same strip: the input's device picker has a counterpart at
               last. `basis-full` rather than a separate panel — it belongs to "what am I

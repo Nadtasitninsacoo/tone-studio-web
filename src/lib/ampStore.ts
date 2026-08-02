@@ -315,6 +315,21 @@ export function getServerAmpEnabledSnapshot(): boolean {
  * again because it is on the knob-drag path, and re-validating every field per frame
  * to catch a mistake that cannot originate here is waste.
  */
+/**
+ * Replace all six racks at once.
+ *
+ * For restoring a saved rig, and for nothing else so far. Six separate writes would emit
+ * six times and let a subscriber render against a rig that is half restored — a guitar from
+ * storage beside a bass from the defaults, which is a tone nobody ever dialled.
+ *
+ * The caller is responsible for having clamped it. `lib/rigStorage.ts` is the only path in,
+ * and it does.
+ */
+export function setRigSettings(next: RigSettings): void {
+  rig = next;
+  emit();
+}
+
 export function setAmpSettings(next: AmpSettings): void {
   if (next === rig.guitar) return;
   rig = { ...rig, guitar: next };
