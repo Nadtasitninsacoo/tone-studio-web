@@ -39,16 +39,11 @@
 
 import {
   AMP_WORKLET_URL,
-  createAmpChain,
-  DEFAULT_AMP,
-  type AmpChain,
-  type AmpSettings,
 } from './ampFx';
 import {
   audibleChannelIds,
   audibleGroupIds,
   channelGain,
-  faderGain,
   groupGain,
   masterGain,
   trimGain,
@@ -106,7 +101,7 @@ export interface MixGraph {
   /** Where channels with no group, and every group, arrive. */
   masterFader: GainNode;
   /** The master limiter, or null when its worklet could not be loaded. */
-  limiter: AmpChain | null;
+  limiter: MasterLimiter | null;
   /** Wet/dry pair straddling the limiter, so bypass is a gain change not a rewire. */
   limiterWet: GainNode;
   limiterDry: GainNode;
@@ -123,35 +118,70 @@ export interface MixGraph {
 /** Meter window. 2048 at 48 k is ~43 ms — long enough to be steady, short enough to move. */
 const METER_FFT = 2048;
 
+/** The master limiter: one worklet, its two parameters, and nothing else. */
+interface MasterLimiter {
+  readonly input: AudioNode;
+  readonly output: AudioNode;
+  update(ceilingDb: number): void;
+  disconnect(): void;
+}
+
 /**
- * The master limiter is the amp chain with everything except the limiter switched off.
+ * A limiter, rather than a whole amp chain configured to behave like one.
  *
- * Rather than a second implementation of look-ahead limiting: that worklet is written,
- * measured (13 checks, 2.5× faster than the version it replaced) and already loaded on
- * this page. Everything else in the chain is bypassed, so the signal path is a DC
- * blocker, the limiter and two gains.
+ * This used to be `createAmpChain` with everything switched off, and the comment above it
+ * claimed the result was "a DC blocker, the limiter and two gains". It was not. The rule
+ * that chain is built on — stated in `lib/ampGraph.ts` — is that **a disabled stage is
+ * neutralised in place, not removed**: switching the cabinet off swaps in a parallel bypass
+ * gain, switching the drive off installs a null curve, switching the gate off writes 0 to a
+ * parameter. Every node stays wired and every node still runs.
  *
- * Built from `DEFAULT_AMP`, **not** from the user's amp settings, and that is
- * load-bearing. Spreading the live settings would put the guitar's input trim, its
- * output trim and its tone stack on the master bus — the default amp is +2 dB bass and
- * +2 dB treble, so every mix would come out EQ'd by whatever the guitarist had dialled,
- * and dialling the amp would change the master. The three neutralisations below are
- * explicit for the same reason: `enabled: false` covers the blocks that have a switch,
- * and the trims and the tone stack do not have one.
+ * So the desk was carrying a full guitar amplifier on its master bus — a gate worklet,
+ * three waveshapers at 4x oversampling, two cabinet convolvers, a reverb convolver, nine
+ * biquads and a delay line — every quantum, before a single channel was open, to obtain one
+ * look-ahead limiter. On the machine this was written for that is about one and a half rig
+ * chains of overhead, and it is most of why the desk broke up on fewer channels than the
+ * Rig page did.
+ *
+ * The reason the old version existed is still respected and is worth restating, because it
+ * is easy to read this change as undoing it: the master limiter must **never** inherit the
+ * player's amp settings. Spreading those would put the guitar's input trim, output trim and
+ * tone stack across the whole mix — the default amp alone is +2 dB bass and +2 dB treble —
+ * and dialling the amp would change the master. That rule was about not borrowing the
+ * guitar's *values*. It never required borrowing its *signal path*, and a limiter that owns
+ * nothing but a ceiling cannot inherit anything at all.
+ *
+ * The processor is the same one, from the same module, already loaded on this page: written,
+ * measured, and 2.5x faster than the version it replaced.
  */
-function masterLimiterSettings(ceilingDb: number): AmpSettings {
+function createMasterLimiter(ctx: BaseAudioContext, ceilingDb: number): MasterLimiter {
+  const node = new AudioWorkletNode(ctx, 'limiter-processor', {
+    numberOfInputs: 1,
+    numberOfOutputs: 1,
+    outputChannelCount: [2],
+  });
+
+  const ceiling = node.parameters.get('ceiling');
+  const enabled = node.parameters.get('enabled');
+  // Always on as a processor; the desk's own switch is the wet/dry pair around it, so a
+  // bypass stays a gain change rather than a rewire.
+  if (enabled) enabled.value = 1;
+  if (ceiling) ceiling.value = ceilingDb;
+
   return {
-    ...DEFAULT_AMP,
-    inputDb: 0,
-    outputDb: 0,
-    tone: { ...DEFAULT_AMP.tone, bassDb: 0, midDb: 0, trebleDb: 0 },
-    gate: { ...DEFAULT_AMP.gate, enabled: false },
-    comp: { ...DEFAULT_AMP.comp, enabled: false },
-    drive: { ...DEFAULT_AMP.drive, enabled: false },
-    cab: { ...DEFAULT_AMP.cab, enabled: false },
-    delay: { ...DEFAULT_AMP.delay, enabled: false },
-    reverb: { ...DEFAULT_AMP.reverb, enabled: false },
-    limiter: { enabled: true, ceilingDb },
+    input: node,
+    output: node,
+    update(nextCeilingDb: number) {
+      if (ceiling) ceiling.value = nextCeilingDb;
+    },
+    disconnect() {
+      node.port.onmessage = null;
+      try {
+        node.disconnect();
+      } catch {
+        // Already detached, or the context has gone.
+      }
+    },
   };
 }
 
@@ -222,10 +252,10 @@ export function buildMixGraph({
   analyserR.fftSize = METER_FFT;
   analyserR.smoothingTimeConstant = 0;
 
-  let limiter: AmpChain | null = null;
+  let limiter: MasterLimiter | null = null;
   if (hasWorklets) {
     try {
-      limiter = createAmpChain(ctx, masterLimiterSettings(state.master.ceilingDb));
+      limiter = createMasterLimiter(ctx, state.master.ceilingDb);
       masterFader.connect(limiter.input);
       limiter.output.connect(limiterWet);
     } catch {
@@ -447,7 +477,7 @@ export function applyMixState(
   const wet = graph.limiter !== null && state.master.limiter;
   graph.limiterWet.gain.setTargetAtTime(wet ? 1 : 0, at, rampSec);
   graph.limiterDry.gain.setTargetAtTime(wet ? 0 : 1, at, rampSec);
-  graph.limiter?.update(masterLimiterSettings(state.master.ceilingDb));
+  graph.limiter?.update(state.master.ceilingDb);
 }
 
 /** Peak of one meter tap, 0..1. Read inside an animation frame, never in render. */
