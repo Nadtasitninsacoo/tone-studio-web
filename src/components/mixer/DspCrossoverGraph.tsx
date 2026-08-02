@@ -2,10 +2,17 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { crossoverSections, logFrequencies, measureCascade } from '@/lib/filterResponse';
+
 interface DspCrossoverGraphProps {
   crossoverHz: number;
   onChange: (hz: number) => void;
   hudColor?: string;
+  /**
+   * The rate to measure at. A biquad's response is rate-dependent near Nyquist, so the
+   * curve is only the filter in the signal path if this matches the engine's context.
+   */
+  sampleRate?: number;
 }
 
 const F_MIN = 20;
@@ -17,6 +24,7 @@ export function DspCrossoverGraph({
   crossoverHz,
   onChange,
   hudColor = 'cyan',
+  sampleRate = 48000,
 }: DspCrossoverGraphProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -42,23 +50,6 @@ export function DspCrossoverGraph({
   const getY = (db: number, height: number) => {
     const clamped = Math.max(DB_MIN, Math.min(DB_MAX, db));
     return ((DB_MAX - clamped) / (DB_MAX - DB_MIN)) * height;
-  };
-
-  // Calculate Linkwitz-Riley 4th order magnitude response in dB
-  const getLowPassDb = (f: number, fc: number) => {
-    const ratio = f / fc;
-    const ratioSq = ratio * ratio;
-    const ratio4 = ratioSq * ratioSq;
-    // H(f) = 1 / (1 + (f/fc)^4)
-    return -20 * Math.log10(1 + ratio4);
-  };
-
-  const getHighPassDb = (f: number, fc: number) => {
-    const ratio = fc / f;
-    const ratioSq = ratio * ratio;
-    const ratio4 = ratioSq * ratioSq;
-    // H(f) = 1 / (1 + (fc/f)^4)
-    return -20 * Math.log10(1 + ratio4);
   };
 
   // Handle resizing and canvas drawing
@@ -117,7 +108,39 @@ export function DspCrossoverGraph({
         ctx.fillText(`${db}dB`, 4, y - 2);
       });
 
+      /**
+       * The real filters' response, measured per pixel column.
+       *
+       * This used to be the textbook Linkwitz-Riley expression. That expression is correct
+       * and it is still not the filter in the signal path: a `BiquadFilterNode` is digital,
+       * its coefficients come from the bilinear transform, and the frequency axis warps
+       * towards Nyquist. `getFrequencyResponse` is the browser answering for its own
+       * implementation at the rate in use — see `lib/filterResponse.ts`.
+       *
+       * Measured at exactly the frequency of each pixel column, so nothing is interpolated:
+       * the curve is the response, sampled where it is drawn. `logFrequencies` spans the
+       * same axis `getX` maps, so the array index is the pixel column.
+       *
+       * Inside the effect rather than beside it: it depends only on values the effect
+       * already lists, and hoisting it would make it a dependency of its own.
+       */
+      const measured =
+        width < 2
+          ? null
+          : (() => {
+              const freqs = logFrequencies(F_MIN, F_MAX, width);
+              return {
+                low: measureCascade(crossoverSections(crossoverHz, 'low'), freqs, sampleRate),
+                high: measureCascade(crossoverSections(crossoverHz, 'high'), freqs, sampleRate),
+              };
+            })();
+
+      // Null only on a browser with no `OfflineAudioContext`; the grid and the labels
+      // still draw and the curves do not — an absent curve is honest, and a modelled one
+      // pretending to be measured is not.
+
       // 2. Plot Low-pass Curve (Magenta)
+      if (measured?.low) {
       ctx.beginPath();
       ctx.strokeStyle = '#d946ef'; // Fuchsia-500
       ctx.lineWidth = 2.5;
@@ -125,14 +148,13 @@ export function DspCrossoverGraph({
       ctx.shadowBlur = 8;
 
       for (let x = 0; x < width; x++) {
-        const freq = getFreq(x, width);
-        const db = getLowPassDb(freq, crossoverHz);
-        const y = getY(db, height);
+        const y = getY(measured.low.magnitudeDb[x], height);
         if (x === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
       ctx.stroke();
       ctx.shadowBlur = 0; // Reset shadow
+      }
 
       // 3. Plot High-pass Curve (Cyan/HUD color)
       const activeColor = hudColor === 'green' ? '#22c55e' : 
@@ -140,6 +162,7 @@ export function DspCrossoverGraph({
                           hudColor === 'violet' ? '#8b5cf6' : 
                           hudColor === 'amber' ? '#f59e0b' : '#ec4899';
 
+      if (measured?.high) {
       ctx.beginPath();
       ctx.strokeStyle = activeColor;
       ctx.lineWidth = 2.5;
@@ -147,14 +170,13 @@ export function DspCrossoverGraph({
       ctx.shadowBlur = 8;
 
       for (let x = 0; x < width; x++) {
-        const freq = getFreq(x, width);
-        const db = getHighPassDb(freq, crossoverHz);
-        const y = getY(db, height);
+        const y = getY(measured.high.magnitudeDb[x], height);
         if (x === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
       ctx.stroke();
       ctx.shadowBlur = 0; // Reset shadow
+      }
 
       // 4. Draw Crossover point intersection marker
       const crossX = getX(crossoverHz, width);
@@ -191,7 +213,7 @@ export function DspCrossoverGraph({
     return () => {
       window.removeEventListener('resize', draw);
     };
-  }, [crossoverHz, hudColor]);
+  }, [crossoverHz, hudColor, sampleRate]);
 
   // Drag listeners
   const handleStart = (clientX: number) => {
@@ -199,7 +221,6 @@ export function DspCrossoverGraph({
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const x = clientX - rect.left;
-    const freq = getFreq(x, rect.width);
 
     // If click is near crossover frequency (log scale check)
     const crossX = getX(crossoverHz, rect.width);
