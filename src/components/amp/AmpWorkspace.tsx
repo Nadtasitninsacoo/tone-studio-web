@@ -12,7 +12,7 @@ import { useAccent } from '@/hooks/useAccent';
 import { BUFFER_CHOICES } from '@/hooks/useRecorder';
 import { usePressAndHold } from '@/hooks/usePressAndHold';
 import { MiniSlider } from '@/components/ui/Controls';
-import { getEnabledSnapshot } from '@/lib/ampStore';
+import { getEnabledSnapshot, getRigDeskLink } from '@/lib/ampStore';
 import type { Instrument } from '@/lib/rig';
 
 import { BassRack } from './BassRack';
@@ -92,7 +92,10 @@ export function AmpWorkspace() {
   /** One instrument's level, on both the recorder's monitor and its mixer channels. */
   const handleLevel = (which: Instrument, value: number) => {
     recorder.setInstrumentLevel(which, value);
-    mixer.setInsertLevel(which, value);
+    // Only when the bridge is on. Unconditionally, this slider overwrote the balance the
+    // player had just set on the desk — see `RigDeskLink` for why the two are different
+    // jobs and why they can be independent without ever disagreeing.
+    if (getRigDeskLink()) mixer.setInsertLevel(which, value);
   };
 
   /**
@@ -106,7 +109,7 @@ export function AmpWorkspace() {
    */
   const handleToggle = (which: Instrument) => {
     recorder.toggleInstrument(which);
-    mixer.setInsertEnabled(which, getEnabledSnapshot()[which]);
+    if (getRigDeskLink()) mixer.setInsertEnabled(which, getEnabledSnapshot()[which]);
   };
 
   // The visible rack's header switch is that rack's channel — the same switch as the
@@ -166,7 +169,7 @@ export function AmpWorkspace() {
                   type="button"
                   disabled={!recorder.isMonitoring}
                   title="ลดเสียงมอนิเตอร์รวมทีละ 1%"
-                  className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-lg border border-cyan/60 bg-cyan/20 hover:bg-cyan/35 active:scale-95 text-cyan hover:text-white transition-all duration-100 disabled:pointer-events-none disabled:opacity-20 font-mono text-[13px] font-bold shadow-md shadow-cyan/10"
+                  className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-lg border border-cyan/60 bg-cyan/20 hover:bg-cyan/35 active:scale-95 text-cyan hover:text-white transition-all duration-100 disabled:pointer-events-none disabled:bg-transparent disabled:text-cyan/40 disabled:shadow-none font-mono text-[13px] font-bold shadow-md shadow-cyan/10"
                   {...masterDecHandlers}
                 >
                   -
@@ -190,7 +193,7 @@ export function AmpWorkspace() {
                   type="button"
                   disabled={!recorder.isMonitoring}
                   title="เพิ่มเสียงมอนิเตอร์รวมทีละ 1%"
-                  className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-lg border border-cyan/60 bg-cyan/20 hover:bg-cyan/35 active:scale-95 text-cyan hover:text-white transition-all duration-100 disabled:pointer-events-none disabled:opacity-20 font-mono text-[13px] font-bold shadow-md shadow-cyan/10"
+                  className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-lg border border-cyan/60 bg-cyan/20 hover:bg-cyan/35 active:scale-95 text-cyan hover:text-white transition-all duration-100 disabled:pointer-events-none disabled:bg-transparent disabled:text-cyan/40 disabled:shadow-none font-mono text-[13px] font-bold shadow-md shadow-cyan/10"
                   {...masterIncHandlers}
                 >
                   +

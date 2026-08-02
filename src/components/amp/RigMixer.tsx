@@ -4,6 +4,7 @@ import { Drum, Guitar, Power, Waves, Mic, Keyboard, Wind, type LucideIcon } from
 
 import { MiniSlider } from '@/components/ui/Controls';
 import { INSTRUMENT_INFO, INSTRUMENTS, type Instrument } from '@/lib/rig';
+import { RigDeskLink } from './RigDeskLink';
 import { usePressAndHold } from '@/hooks/usePressAndHold';
 
 const ICONS: Record<Instrument, LucideIcon> = {
@@ -68,10 +69,14 @@ export function RigMixer({
 
   return (
     <section className="rounded-xl border border-line bg-panel p-1.5 shadow-panel">
-      <div className="mb-1 flex items-baseline justify-between gap-2 px-1">
-        <p className="font-mono text-[9px] font-semibold tracking-[0.16em] uppercase text-ink-3">
-          Rig mixer
-        </p>
+      <div className="mb-1 flex items-center justify-between gap-2 px-1">
+        <div className="flex items-center gap-2">
+          <p className="font-mono text-[9px] font-semibold tracking-[0.16em] uppercase text-ink-3">
+            Rig mixer
+          </p>
+          {/* Whether this row also drives the desk. Off by default — see `RigDeskLink`. */}
+          <RigDeskLink />
+        </div>
         <p className="font-mono text-[9px] tracking-wider uppercase text-ink-3">
           {liveCount === 0
             ? 'ทุกช่องปิด — ได้ยินสัญญาณดิบ'

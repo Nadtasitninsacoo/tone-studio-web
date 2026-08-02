@@ -140,7 +140,7 @@ export function HeaderBar({
                   type="button"
                   disabled={!isMonitoring}
                   title="ลดเสียงมอนิเตอร์รวมทีละ 1%"
-                  className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-lg border border-cyan/60 bg-cyan/20 hover:bg-cyan/35 active:scale-95 text-cyan hover:text-white transition-all duration-100 disabled:pointer-events-none disabled:opacity-20 font-mono text-[13px] font-bold shadow-md shadow-cyan/10"
+                  className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-lg border border-cyan/60 bg-cyan/20 hover:bg-cyan/35 active:scale-95 text-cyan hover:text-white transition-all duration-100 disabled:pointer-events-none disabled:bg-transparent disabled:text-cyan/40 disabled:shadow-none font-mono text-[13px] font-bold shadow-md shadow-cyan/10"
                   {...masterDecHandlers}
                 >
                   -
@@ -164,7 +164,7 @@ export function HeaderBar({
                   type="button"
                   disabled={!isMonitoring}
                   title="เพิ่มเสียงมอนิเตอร์รวมทีละ 1%"
-                  className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-lg border border-cyan/60 bg-cyan/20 hover:bg-cyan/35 active:scale-95 text-cyan hover:text-white transition-all duration-100 disabled:pointer-events-none disabled:opacity-20 font-mono text-[13px] font-bold shadow-md shadow-cyan/10"
+                  className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-lg border border-cyan/60 bg-cyan/20 hover:bg-cyan/35 active:scale-95 text-cyan hover:text-white transition-all duration-100 disabled:pointer-events-none disabled:bg-transparent disabled:text-cyan/40 disabled:shadow-none font-mono text-[13px] font-bold shadow-md shadow-cyan/10"
                   {...masterIncHandlers}
                 >
                   +

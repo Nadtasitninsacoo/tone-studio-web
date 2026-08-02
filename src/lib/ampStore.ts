@@ -131,6 +131,28 @@ let rigQuality: RigQuality = 'full';
  */
 let monitorBufferMs = 30;
 
+/**
+ * Whether the Rig page's channel row also drives the desk's faders and mutes.
+ *
+ * **Off by default, because the two are different jobs.** Only one side owns the live
+ * monitor at a time, so the Rig page's level is the level you hear *while dialling a tone*
+ * and the desk's fader is the level that instrument sits at *in the mix*. They are never
+ * both applied, which is exactly why they can be independent without disagreeing.
+ *
+ * They used to be wired together unconditionally, and it broke the obvious workflow: shape
+ * a tone on the Rig page, balance it on the desk, go back to the Rig page for one more
+ * tweak — and the balance is gone, overwritten by a slider that was only ever meant to set
+ * a monitor level.
+ *
+ * On, it is the old behaviour and it is useful on purpose: one row of six faders that moves
+ * the whole desk is the fastest way to rough out a balance before touching a strip.
+ *
+ * One direction only, Rig to desk. The reverse has no answer — an instrument has one level
+ * and a desk can carry the same rack on several strips, so "which fader sets it" is a
+ * question with no correct answer rather than one nobody has implemented.
+ */
+let rigDeskLink = false;
+
 const listeners = new Set<() => void>();
 
 function emit(): void {
@@ -233,6 +255,21 @@ export function getServerMonitorBufferMs(): number {
 export function setMonitorBufferMs(next: number): void {
   if (monitorBufferMs === next) return;
   monitorBufferMs = next;
+  emit();
+}
+
+export function getRigDeskLink(): boolean {
+  return rigDeskLink;
+}
+
+/** Separate on the server, as on the client: the safe default is the one that erases nothing. */
+export function getServerRigDeskLink(): boolean {
+  return false;
+}
+
+export function setRigDeskLink(next: boolean): void {
+  if (rigDeskLink === next) return;
+  rigDeskLink = next;
   emit();
 }
 
