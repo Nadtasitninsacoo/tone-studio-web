@@ -1,8 +1,14 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
-import { setRigSettings, type MonitorScope } from '@/lib/ampStore';
+import {
+  getRigDeskLink,
+  getServerRigDeskLink,
+  setRigSettings,
+  subscribeAmp,
+  type MonitorScope,
+} from '@/lib/ampStore';
 import { loadRig } from '@/lib/rigStorage';
 import { useInputDevices } from '@/hooks/useInputDevices';
 import { useMixer } from '@/hooks/useMixer';
@@ -223,6 +229,7 @@ function MixerProvider({ children }: { children: ReactNode }) {
    * stops in this app when somebody stops it, not when they navigate.
    */
   const { setMonitorLive } = mixer;
+  const rigDeskLink = useSyncExternalStore(subscribeAmp, getRigDeskLink, getServerRigDeskLink);
   const lastScope = useRef<MonitorScope | null>(null);
   /**
    * A monitor to open as soon as there is an input to open it for.
@@ -234,7 +241,9 @@ function MixerProvider({ children }: { children: ReactNode }) {
    */
   const pendingMonitor = useRef(false);
   useEffect(() => {
-    setMonitorLive(monitorScope === 'mixer');
+    // Bridged, the desk stays live even when the Rig side owns the monitor — that is what
+    // "work together" means, and it is the one case where both engines sound at once.
+    setMonitorLive(monitorScope === 'mixer' || rigDeskLink);
 
     /**
      * Taking the sound has to *give you the sound*, not just the right to it.
@@ -263,7 +272,7 @@ function MixerProvider({ children }: { children: ReactNode }) {
       pendingMonitor.current = false;
       if (!isMonitoring) toggleMonitoring();
     }
-  }, [monitorScope, setMonitorLive, isMonitoring, toggleMonitoring, recorderStatus]);
+  }, [monitorScope, rigDeskLink, setMonitorLive, isMonitoring, toggleMonitoring, recorderStatus]);
 
   return <MixerContext.Provider value={mixer}>{children}</MixerContext.Provider>;
 }

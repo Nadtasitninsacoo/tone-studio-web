@@ -36,10 +36,12 @@ import {
   getMasterVolume,
   getMonitorScope,
   getRigQuality,
+  getRigDeskLink,
   getMonitorBufferMs,
   getServerMasterVolume,
   getServerMonitorScope,
   getServerRigQuality,
+  getServerRigDeskLink,
   getServerMonitorBufferMs,
   setMasterVolume,
   setRigQuality,
@@ -478,6 +480,22 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
   );
   /** How much of every chain is in the path. See `lib/bypass.ts`. */
   const rigQuality = useSyncExternalStore(subscribeAmp, getRigQuality, getServerRigQuality);
+  /**
+   * The bridge, which also decides whether this engine may sound alongside the desk.
+   *
+   * Bridged, both sides are audible at once — asked for explicitly, and the trade is real:
+   * two engines is twice the DSP, and any instrument live on both is heard through two
+   * copies of the same processing on two clocks, which comb-filters because the two buffers
+   * can never be in phase. Switching that channel off on one side is the answer, and it is
+   * the player's to make.
+   */
+  const rigDeskLink = useSyncExternalStore(
+    subscribeAmp,
+    getRigDeskLink,
+    getServerRigDeskLink,
+  );
+  /** Whether this engine may make the live sound: it owns the monitor, or the bridge is on. */
+  const ownsMonitor = monitorScope === 'recorder' || rigDeskLink;
   /** Shared with the desk: one machine, one buffer. See `lib/ampStore.ts`. */
   const bufferMs = useSyncExternalStore(
     subscribeAmp,
@@ -1324,7 +1342,7 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
     const engine = engineRef.current;
     if (!engine) return;
     const at = engine.ctx.currentTime;
-    const owns = monitorScope === 'recorder';
+    const owns = ownsMonitor;
 
     /**
      * A channel that is off leaves the graph, it does not merely go quiet.
@@ -1423,7 +1441,7 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
     return () => {
       for (const timer of detaching) window.clearTimeout(timer);
     };
-  }, [enabled, level, monitorScope]);
+  }, [enabled, level, ownsMonitor]);
 
   /** Start/stop pitch detection. */
   const toggleTuner = useCallback(() => {
@@ -1839,6 +1857,8 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
      * about a signal that is plainly there on the meters beside it.
      */
     monitorScope,
+    /** The effective answer, bridge included. Use this, not `monitorScope`, for UI. */
+    ownsMonitor,
     amp,
     /** Limiter gain reduction in dB (<= 0). Read inside an animation frame. */
     limiterReductionRef,

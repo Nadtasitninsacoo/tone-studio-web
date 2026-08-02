@@ -48,6 +48,14 @@ interface MonitorHandoverProps {
  * without a press now, including on `/`, where you arm the input and decide whether the
  * room is safe to open a speaker into.
  *
+ * **The wording is "สลับมาฟัง", not "รับเสียงมา", and that was a correction.** The first
+ * label read as taking something off the other page, and it was reported three times as the
+ * button stealing the sound. It is not taking anything: both sides carry the same signal
+ * through the same racks, and this moves where you are listening from — one end of a cable
+ * to the other. What is exclusive is the *listening*, and nothing is lost by it, because
+ * hearing both at once would be the same instrument through two copies of the same
+ * processing on two clocks: double the CPU and a comb filter for the trouble.
+ *
  * `useSyncExternalStore` needs its third argument here like everywhere else in this app —
  * every route is prerendered, and without a server snapshot `next build` fails on the page
  * with "Missing getServerSnapshot" rather than degrading to client rendering.
@@ -61,11 +69,11 @@ export function MonitorHandover({ scope, here, there }: MonitorHandoverProps) {
     return (
       <span
         role="status"
-        title={`เสียงสดอยู่ที่${here} — จะไม่ย้ายไปไหนจนกว่าจะกดปุ่มที่หน้าอื่น`}
+        title={`กำลังฟังจาก${here} — จะไม่ย้ายไปไหนจนกว่าจะกดปุ่มที่หน้าอื่น`}
         className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-cyan/50 bg-cyan/12 px-2.5 font-mono text-[10px] font-bold tracking-wider uppercase text-cyan"
       >
         <Volume2 aria-hidden className="h-3.5 w-3.5" />
-        เสียงสดอยู่ที่นี่
+        กำลังฟังที่นี่
       </span>
     );
   }
@@ -74,11 +82,11 @@ export function MonitorHandover({ scope, here, there }: MonitorHandoverProps) {
     <button
       type="button"
       onClick={() => setMonitorScope(scope)}
-      title={`ตอนนี้เสียงสดอยู่ที่${there} — กดเพื่อย้ายมาที่${here}`}
+      title={`กำลังฟังจาก${there} อยู่ — กดเพื่อสลับมาฟังจาก${here} (อีกฝั่งจะเงียบ เพราะเป็นสัญญาณเส้นเดียวกัน ฟังได้ทีละจุด)`}
       className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-line-strong bg-inset px-2.5 font-mono text-[10px] font-bold tracking-wider uppercase text-ink-2 transition-colors duration-150 hover:border-cyan/50 hover:text-cyan"
     >
       <Headphones aria-hidden className="h-3.5 w-3.5" />
-      รับเสียงมาที่นี่
+      สลับมาฟังที่นี่
     </button>
   );
 }

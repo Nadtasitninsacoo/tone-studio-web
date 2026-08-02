@@ -27,9 +27,17 @@ import {
  * deletion: six faders that move the whole desk at once is the fastest way to rough out a
  * balance before touching a single strip.
  *
- * **One direction, and that is not an omission.** An instrument has one level; a desk can
- * carry the same rack on several strips. "Which fader sets it" is a question with no
- * correct answer, so the bridge only ever runs Rig → desk, and the button says so.
+ * **It also lets both engines sound at once**, which is the thing it was actually being
+ * asked for. Off, listening is exclusive and the handover button moves it; on, the Rig
+ * page's monitor and the desk are both live. That is twice the DSP — the cost this whole
+ * project spent a day learning — and any instrument live on both sides is heard through two
+ * copies of the same processing on two clocks, which comb-filters because two buffers can
+ * never be in phase. Both are real, both are the player's to manage by switching a channel
+ * off on one side, and neither is a reason to refuse the mode.
+ *
+ * **One direction for the faders, and that is not an omission.** An instrument has one
+ * level; a desk can carry the same rack on several strips. "Which fader sets it" is a
+ * question with no correct answer, so the fader half only ever runs Rig → desk.
  * ---------------------------------------------------------------------------
  */
 export function RigDeskLink() {
@@ -41,8 +49,8 @@ export function RigDeskLink() {
       onClick={() => setRigDeskLink(!linked)}
       title={
         linked
-          ? 'เชื่อมอยู่ — เลื่อนระดับหรือกดปิดช่องที่นี่ จะไปเปลี่ยน fader และ mute บนมิกเซอร์ด้วย กดเพื่อแยก'
-          : 'แยกกันอยู่ — ระดับที่นี่คือระดับมอนิเตอร์ ไม่แตะบาลานซ์บนมิกเซอร์ กดเพื่อเชื่อม'
+          ? 'บริดจ์เปิด — ทั้งสองหน้าดังพร้อมกัน และระดับ/ปิดช่องที่นี่จะไปเปลี่ยน fader กับ mute บนมิกเซอร์ด้วย · ระวังเสียงซ้อนถ้าช่องเดียวกันสดทั้งสองฝั่ง กดเพื่อปิด'
+          : 'บริดจ์ปิด — ฟังได้ทีละฝั่ง และระดับที่นี่คือระดับมอนิเตอร์ ไม่แตะบาลานซ์บนมิกเซอร์ กดเพื่อเปิด'
       }
       aria-pressed={linked}
       /*

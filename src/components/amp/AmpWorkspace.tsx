@@ -77,7 +77,7 @@ export function AmpWorkspace() {
    * below should keep saying so. Read from the store rather than assumed from the route —
    * the rule lives in one place (`lib/ampStore.ts`) and this is a view of it.
    */
-  const hasLiveFeed = isArmed && recorder.monitorScope === 'recorder';
+  const hasLiveFeed = isArmed && recorder.ownsMonitor;
 
   const masterDecHandlers = usePressAndHold(() => {
     recorder.changeMasterVolume(Math.max(0, recorder.masterVolume - 0.01));
