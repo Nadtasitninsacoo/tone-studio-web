@@ -9,12 +9,17 @@ import { mediaErrorMessage } from '@/lib/mediaErrors';
 import { filenameStamp } from '@/lib/format';
 import { DEFAULT_MP3_KBPS, encodeMp3 } from '@/lib/mp3';
 import {
+  getEnabledSnapshot,
+  getLevelSnapshot,
   getMonitorBufferMs,
+  getRigDeskLink,
   getRigQuality,
   getRigSnapshot,
   getServerMonitorBufferMs,
   getServerRigQuality,
   getServerRigSnapshot,
+  setInstrumentEnabled,
+  setInstrumentLevel,
   setMonitorBufferMs,
   setRigQuality,
   subscribeAmp,
@@ -1141,14 +1146,42 @@ export function useMixer() {
 
   // ------------------------------------------------------------ strip edits ---
 
+  /**
+   * The fader, and — while bridged — the instrument's monitor level with it.
+   *
+   * The bridge used to run one way. The Rig page's row wrote the desk's faders, the desk
+   * wrote nothing back, and with both engines audible that made a desk fader control half
+   * of what you could hear: pull it to the bottom and the Rig monitor carried on playing
+   * that instrument at full. It reads exactly like a fader that does not work.
+   *
+   * Bridged means the desk is the console, so the desk owns level. The reverse direction
+   * was left out originally because a rack can sit on several strips and "which fader sets
+   * it" looked unanswerable. It is answerable: **the one that was just moved.** Two strips
+   * carrying one rack now behave like two faders on one bus, last touch wins, which is what
+   * linking them was asking for.
+   *
+   * The epsilon is the loop guard. Writing the store re-renders the Rig page, whose slider
+   * writes back through `setInsertLevel`, and dB↔linear round-tripping never lands on the
+   * same float twice — so without a tolerance the two would chase each other. A thousandth
+   * of full scale is far below anything audible and far above the drift.
+   */
   const setChannelGain = useCallback(
-    (id: string, gainDb: number) =>
+    (id: string, gainDb: number) => {
+      const clamped = clampFaderDb(gainDb);
       change((current) => ({
         ...current,
         channels: current.channels.map((channel) =>
-          channel.id === id ? { ...channel, gainDb: clampFaderDb(gainDb) } : channel,
+          channel.id === id ? { ...channel, gainDb: clamped } : channel,
         ),
-      })),
+      }));
+
+      if (!getRigDeskLink()) return;
+      const insert = stateRef.current.channels.find((channel) => channel.id === id)?.insert;
+      if (!insert) return;
+      const level = Math.min(1.5, Math.max(0, 10 ** (clamped / 20)));
+      if (Math.abs(getLevelSnapshot()[insert] - level) < 0.001) return;
+      setInstrumentLevel(insert, level);
+    },
     [change],
   );
 
@@ -1175,14 +1208,24 @@ export function useMixer() {
     [change],
   );
 
+  /** MUTE, and — while bridged — the rack's own switch with it. Same rule as the fader. */
   const toggleChannelMute = useCallback(
-    (id: string) =>
+    (id: string) => {
+      const channel = stateRef.current.channels.find((entry) => entry.id === id);
+      const nextMuted = !channel?.muted;
       change((current) => ({
         ...current,
-        channels: current.channels.map((channel) =>
-          channel.id === id ? { ...channel, muted: !channel.muted } : channel,
+        channels: current.channels.map((entry) =>
+          entry.id === id ? { ...entry, muted: nextMuted } : entry,
         ),
-      })),
+      }));
+
+      if (!getRigDeskLink()) return;
+      const insert = channel?.insert;
+      if (!insert) return;
+      if (getEnabledSnapshot()[insert] === !nextMuted) return;
+      setInstrumentEnabled(insert, !nextMuted);
+    },
     [change],
   );
 

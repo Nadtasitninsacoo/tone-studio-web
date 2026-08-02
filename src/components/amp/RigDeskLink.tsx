@@ -35,9 +35,13 @@ import {
  * never be in phase. Both are real, both are the player's to manage by switching a channel
  * off on one side, and neither is a reason to refuse the mode.
  *
- * **One direction for the faders, and that is not an omission.** An instrument has one
- * level; a desk can carry the same rack on several strips. "Which fader sets it" is a
- * question with no correct answer, so the fader half only ever runs Rig → desk.
+ * **The faders link both ways**, and getting there took a correction. It ran Rig → desk
+ * only, on the reasoning that a rack can sit on several strips so "which fader sets it"
+ * had no answer. With both engines audible that made a desk fader control half of what
+ * could be heard — pulled to the bottom, the Rig monitor carried on playing that
+ * instrument at full, which reads as a fader that does not work. The question does have an
+ * answer: **the fader that was just moved.** Two strips carrying one rack now behave like
+ * two faders on one bus, last touch wins.
  * ---------------------------------------------------------------------------
  */
 export function RigDeskLink() {
@@ -49,8 +53,8 @@ export function RigDeskLink() {
       onClick={() => setRigDeskLink(!linked)}
       title={
         linked
-          ? 'บริดจ์เปิด — ทั้งสองหน้าดังพร้อมกัน และระดับ/ปิดช่องที่นี่จะไปเปลี่ยน fader กับ mute บนมิกเซอร์ด้วย · ระวังเสียงซ้อนถ้าช่องเดียวกันสดทั้งสองฝั่ง กดเพื่อปิด'
-          : 'บริดจ์ปิด — ฟังได้ทีละฝั่ง และระดับที่นี่คือระดับมอนิเตอร์ ไม่แตะบาลานซ์บนมิกเซอร์ กดเพื่อเปิด'
+          ? 'บริดจ์เปิด — ทั้งสองหน้าดังพร้อมกัน และระดับ/mute เชื่อมกันสองทาง เลื่อนที่ไหนก็ขยับทั้งคู่ · ระวังเสียงซ้อนถ้าช่องเดียวกันสดทั้งสองฝั่ง กดเพื่อปิด'
+          : 'บริดจ์ปิด — desk พัก เสียงออกทางหน้า Rig อย่างเดียว และระดับที่นี่ไม่แตะบาลานซ์บนมิกเซอร์ กดเพื่อเปิด'
       }
       aria-pressed={linked}
       /*
