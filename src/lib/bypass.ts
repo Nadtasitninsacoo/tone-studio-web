@@ -48,7 +48,20 @@ export type RigQuality =
  * describes an existing path rather than building one, so the modules keep their own
  * topology and their own reading order.
  */
-export function makeBypass(from: AudioNode, through: AudioNode, to: AudioNode): (inPath: boolean) => void {
+export function makeBypass(
+  from: AudioNode,
+  /**
+   * One node, or a whole sub-chain by its two ends.
+   *
+   * The desk's inserts are the second kind: a `RigChain` is dozens of nodes reached
+   * through an `input` and an `output`, and taking one out of a strip is the same two
+   * disconnects as taking out a single worklet.
+   */
+  through: AudioNode | { input: AudioNode; output: AudioNode },
+  to: AudioNode,
+): (inPath: boolean) => void {
+  const entry = 'input' in through ? through.input : through;
+  const exit = 'output' in through ? through.output : through;
   let inPath = true;
 
   return (next: boolean) => {
@@ -58,11 +71,11 @@ export function makeBypass(from: AudioNode, through: AudioNode, to: AudioNode): 
     try {
       if (next) {
         from.disconnect(to);
-        from.connect(through);
-        through.connect(to);
+        from.connect(entry);
+        exit.connect(to);
       } else {
-        from.disconnect(through);
-        through.disconnect(to);
+        from.disconnect(entry);
+        exit.disconnect(to);
         from.connect(to);
       }
     } catch {

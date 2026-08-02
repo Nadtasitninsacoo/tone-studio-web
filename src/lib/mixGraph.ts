@@ -40,6 +40,7 @@
 import {
   AMP_WORKLET_URL,
 } from './ampFx';
+import { makeBypass } from './bypass';
 import {
   audibleChannelIds,
   audibleGroupIds,
@@ -54,6 +55,19 @@ import type { MixerState } from '../types/mixer';
 /** One channel's nodes. The source is attached later, per run. */
 export interface ChannelNodes {
   id: string;
+  /**
+   * Take this strip's insert out of the graph, or put it back. Null when it has none.
+   *
+   * A rack that is merely turned down still runs: Web Audio computes a node because it has
+   * a path to `destination`, not because it is audible. The Rig page learned that twice in
+   * one day — once for its monitor bus and once for its six channels — and a muted strip
+   * carrying a rig chain is the same mistake on a desk with eight of them.
+   *
+   * Driven from `useMixer`, not from `applyMixState`, because it has to be ordered against
+   * the fader ramp: connect before the level comes up, and wait for the level to reach zero
+   * before disconnecting, or the strip clicks.
+   */
+  rackBypass: ((inPath: boolean) => void) | null;
   /**
    * Where a source connects: always the trim, which is the first thing in the strip.
    *
@@ -343,11 +357,13 @@ export function buildMixGraph({
     // piled live worklets onto the audio thread. `needsRebuild` treats a source-kind
     // change as a rebuild, so a channel gets its rack the moment it has something to
     // put through it.
+    let rackBypass: ((inPath: boolean) => void) | null = null;
     if (channel.insert !== null && channel.source.kind !== 'empty') {
       try {
         rack = createRigChain(ctx, channel.insert, rig);
         trim.connect(rack.input);
         rack.output.connect(panner);
+        rackBypass = makeBypass(trim, rack, panner);
       } catch {
         // A rack that will not build (its worklets, on a browser that refuses them)
         // must not take the channel with it: pass the signal through clean.
@@ -371,6 +387,7 @@ export function buildMixGraph({
       inputAnalyser,
       inputTimeDomain: new Float32Array(inputAnalyser.fftSize),
       rack,
+      rackBypass,
       panner,
       fader,
       analyser: channelAnalyser,

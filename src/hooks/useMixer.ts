@@ -21,6 +21,7 @@ import {
 } from '@/lib/ampStore';
 import {
   audibleChannelIds,
+  audibleGroupIds,
   channelLength,
   clampFaderDb,
   clampPan,
@@ -564,6 +565,49 @@ export function useMixer() {
     }
     lastAppliedStateRef.current = current;
   }, [state, rebuild]);
+
+  /**
+   * A strip that cannot be heard takes its rack out of the graph.
+   *
+   * The same rule as the Rig page's channels and its monitor bus, and the third time today
+   * it has had to be applied: Web Audio runs a node because it has a path to `destination`,
+   * not because it is audible. A muted strip, a strip whose group is muted, and a strip
+   * losing a solo elsewhere on the desk are all silent — and all were still computing a rig
+   * chain, on a desk that has eight of them.
+   *
+   * Audibility comes from `audibleChannelIds` and `audibleGroupIds`, never from a second
+   * reading of `muted` and `solo`. Two functions deciding independently is exactly how a
+   * soloed channel inside a muted group ends up silent with both of them believing they
+   * were right, which is why the 64-combination invariant is checked.
+   *
+   * Ordered against the fader ramp, as on the Rig page: reconnect immediately, so the level
+   * comes up into a strip that is already there, and wait out the ramp before disconnecting,
+   * so nothing is cut mid-fade. 80 ms is four times the ramp's time constant.
+   */
+  useEffect(() => {
+    const graph = graphRef.current;
+    if (!graph) return;
+
+    const audible = audibleChannelIds(state);
+    const passing = audibleGroupIds(state, audible);
+    const detaching: number[] = [];
+
+    for (const channel of state.channels) {
+      const nodes = graph.channels.get(channel.id);
+      if (!nodes?.rackBypass) continue;
+      const heard =
+        audible.has(channel.id) && (channel.groupId === null || passing.has(channel.groupId));
+      if (heard) {
+        nodes.rackBypass(true);
+      } else {
+        detaching.push(window.setTimeout(() => nodes.rackBypass?.(false), 80));
+      }
+    }
+
+    return () => {
+      for (const timer of detaching) window.clearTimeout(timer);
+    };
+  }, [state]);
 
   /**
    * Push the quality mode into every rack this desk holds.
