@@ -426,6 +426,45 @@ by design.
   the answer instead. Both watchers in `lib/contextHealth` take an `isParked` predicate,
   because a deliberate suspend is otherwise indistinguishable from the failure they exist to
   fix: the poll would resume it within 500 ms and the gesture listener on the next keystroke.
+- **`MONITOR_LATENCY_HINT`, and never `'interactive'` again.** `'interactive'` asks for the
+  smallest buffer the machine will give — 128 frames, ~3 ms — and that was right when this
+  was one guitar through one rack. Six chains do not fit in it: the render thread has to
+  finish six gates, six limiters, two convolvers and six oversampled waveshapers inside
+  every quantum, and when it cannot, the output stream **gives up and stays silent**. Not
+  glitchy — silent, permanently, while `ctx.state` reads `'running'`, the clock keeps
+  advancing, the monitor bus is connected and every gain is 1.0. The desk had already
+  learned this and written it down (`useMixer.ts` predicts "a stutter, and then silence when
+  the output stream gives up"); the recorder was left at 3 ms because the comment said one
+  rack, and nobody updated it when the rack became six. A whole day went into the amp graph,
+  the monitor scope, `setSinkId`, the USB pedal and Windows' audio routing before the
+  question that solved it — *"why can I hear the mixer page, then?"* Both contexts held a
+  `getUserMedia` source node. Only the buffer differed.
+- **A channel that is off is disconnected from `mixBus`, not merely turned down.** Same rule
+  as the monitor bus one line up, one level down, and it is what buys the low buffer back:
+  Web Audio runs a node if it has a path to `destination`, not if it is audible, so six
+  attached-but-silent chains cost exactly as much as six loud ones. The nodes, their
+  parameters and the dialled tone are all untouched — this is not the rebuild-on-switch
+  design that was removed, and a channel still comes back instantly and without a click.
+  Order is load-bearing in both directions: connect *then* ramp up, ramp down *then*
+  disconnect after 80 ms. `arm` attaches only the channels that are already on, because
+  otherwise every arm — including every device recovery — starts at the full six-chain load,
+  which is the load the stream gives up under.
+- `toggleInstrument` writing **nothing but the store**. It used to set the gain directly as
+  well, so the switch felt instant rather than a render later. That stopped being safe when
+  a channel started leaving the graph: gain and connection now have to move together and in
+  order, and a second writer racing the effect either clicks or attaches a node whose gain is
+  already up. One `AudioParam`, one writer — the frame of latency is inaudible against a
+  20 ms ramp.
+- The **two test tones** in `OutputPicker`, and the fact that they are two *buttons*. Button
+  one plays an oscillator straight into the engine context's `destination` — around the amp,
+  around the monitor gain, around everything a rack could break. Button two plays the same
+  tone on a throwaway context that has never touched the mic. Everything above was found by
+  the pair disagreeing, and nothing else could have found it: every reading on the screen was
+  correct while the page was silent. Firing both from one press was tried first and measured
+  nothing — asking a listener to tell 440 Hz from 660 Hz a second apart returns "one beep".
+- The output device picker staying, even though `setSinkId` turned out not to be the answer.
+  It is honest — the readout prints the sink the context actually reports — and ruling the
+  output device out took three of them.
 - `RigMixer`'s carrier line checking the **live feed before the desk**. A rack row that
   reports an empty mixer channel while this engine is carrying the input prints
   "ไม่มีสัญญาณ" a few centimetres from meters reading −1.6 dBFS. That is not a confusing
@@ -438,19 +477,24 @@ Bluetooth detection, MP3 export, **the tuner** and **the entire mixer** have **n
 run in a real browser**. Ask the user to test or drive a browser; do not report them
 as working.
 
-**The mixer has never made a sound.** No `AudioContext` has built `buildMixGraph`, no
-channel has been scheduled, no offline render has run, and no strip meter has been seen
-to move. Its pure half — the fader and trim laws, the equal-power pan, the placement
-arithmetic, the two-tier solo/mute and `needsRebuild` — has 42 Node checks and can be
-reported as checked. Everything that needs a node cannot.
+**The mixer's live monitor has now made a sound** — that is all of it that has. The desk
+was audible on `/mixer` through a live channel while the Rig page was silent, and that
+contrast is what identified the buffer bug. Still unheard, and still not to be reported as
+working: playback of a clip on a channel, the offline render, solo/mute across the two
+tiers, and any strip meter. Its pure half — the fader and trim laws, the equal-power pan,
+the placement arithmetic, the two-tier solo/mute and `needsRebuild` — has 42 Node checks
+and can be reported as checked.
 
-**The device-recovery path is the newest entry on that list.** No device has been
-unplugged and replugged, no track has fired `ended`, `mute` or `unmute`, no context
-has been seen to suspend or stall, and no take has been salvaged. Whether two
-`AudioContext`s can each read a clone of one device stream — the premise of sharing
-the pedal between the two engines — is unverified too. The backoff, the device
-matching and the stall arithmetic have 22 Node checks; report those as checked and
-the recovery itself as untested.
+**The device-recovery path has now run for real, repeatedly, and it worked.** In one
+session a class-compliant USB pedal fired `ended` five times; `pickReplacement` failed by
+id, by group and by label while the device was genuinely absent from the enumeration, the
+backoff kept going, and it reopened on attempt 2 or 3 each time. `swapSource` absorbed
+every replacement — the meters and the limiter's gain reduction never stopped reading, so
+the graph and the dialled tone survived as designed. **Two `AudioContext`s reading clones
+of one device stream is verified**: the recorder and the desk both carried live audio off
+the same lease. The pedal's `groupId` changed on every re-enumeration (four distinct values
+in one session) while its `deviceId` held, which is exactly why the group fallback exists.
+Still unobserved: `mute`/`unmute`, a stalled or suspended context, and a salvaged take.
 
 The **bass rig and the drum bus have never made a sound.** Their data is checked (374
 assertions across two suites) and their graphs type-check, but no `AudioContext` has
@@ -472,11 +516,12 @@ the `output_config.format` schema, the refusal branch and the SDK error mapping 
 type-checked and unexercised. The **local** engine, by contrast, has 244 Node checks
 behind it; report the two differently.
 
-The **amp** belongs on that list twice over. Its DSP has never been heard on either
-page, and the jam page now builds it in two more places — `ensureEngine` and the
-offline `renderMix` — each of which loads an AudioWorklet module that has only ever
-been loaded in the recorder. Type-checking and the `ampGraph` checks say the graph is
-described correctly; they say nothing about whether it makes a sound.
+The **amp** has now been heard, but only in the weakest sense that counts: signal reached
+the speakers through the six-rack monitor path on the Rig page, cleanly and without
+dropouts, after the buffer fix. Nobody has yet A/B'd a knob — whether DRIVE, the cabinet
+choice or the tone stack actually change the sound the way the DSP says they should is
+still unconfirmed, and so is the offline `renderMix` path, which builds the chain a second
+time on an `OfflineAudioContext`. Report the monitor path as heard and the DSP as unjudged.
 
 The tuner deserves its own note because its numbers are unusually good and
 unusually narrow: every one of them comes from a synthesised signal. Real strings
@@ -506,6 +551,24 @@ Three things that session established, worth keeping:
   output has a Dolby DAX3 APO in the chain, so the browser's output is
   post-processed while the captured WAV is dry. The meters read pre-monitor, so they
   tell the truth even when the ears do not.
+
+A later session added four more, all from one silent monitor that took a day:
+
+- **A dead output stream is indistinguishable from a healthy one through the API.**
+  `state: 'running'`, a clock that advances, `monitorBus=connected`, every gain at 1.0 —
+  and an oscillator wired straight to `destination` producing nothing. Nothing in Web Audio
+  reports it. The only way to see it is a second, fresh context making a sound at the same
+  moment, which is what the two test tones are for.
+- **The pedal publishes a playback endpoint too** (`Speakers (USB-Audio) (4c4a:c755)`), and
+  Windows re-points its default at it when the device re-enumerates. That sends a whole
+  debugging session after output routing. It was a red herring here, but it is a real
+  hazard and the reason the output picker exists.
+- **The pedal does hardware direct monitoring.** Headphones in the pedal hear the dry
+  instrument whatever the app does, so "I hear the guitar but the racks change nothing" is
+  its default state and says nothing about whether the app is working. Test with a tone, not
+  with the instrument.
+- **`<video>`/`<audio>` playback and Web Audio fail independently.** YouTube playing fine is
+  not evidence that the page's audio works, and it was repeatedly mistaken for it.
 
 The DSP underneath the jam page *is* verified numerically (FFT, beat tracking,
 capture placement, the crossover response) — see the test status in the README.

@@ -431,8 +431,8 @@ export function useMixer() {
      * A bigger buffer than `'interactive'`, on purpose.
      *
      * `'interactive'` asks for the smallest buffer the machine will give — 128 or 256
-     * frames, about 3–5 ms. That is right for one instrument through one rack, and it is
-     * why the recorder's context still asks for it. A *mixer* is a different job: three
+     * frames, about 3–5 ms. That is right for one instrument through one rack. A *mixer*
+     * is a different job: three
      * live channels means three rig chains, each with a gate worklet, a limiter worklet
      * and (on guitar and bass) a cabinet convolution and an oversampled waveshaper, and
      * at 3 ms the audio thread has to finish all of it inside 128 samples or the buffer
@@ -442,8 +442,12 @@ export function useMixer() {
      * 30 ms asks for roughly eight times that budget for exactly the same DSP. The cost is
      * 25 ms of extra monitoring latency, which is audible when playing but is the right
      * trade for a desk: it is the difference between three channels working and three
-     * channels dropping out. Low-latency monitoring of a single instrument still lives on
-     * the tone page, whose context is unchanged.
+     * channels dropping out.
+     *
+     * The recorder's context now asks for the same 30 ms, and this comment is why: it went
+     * on running six rig chains at 3 ms until the output stream gave up, exactly as
+     * predicted above, and the desk staying audible while the Rig page was silent is what
+     * finally identified it. See `MONITOR_LATENCY_HINT` in `useRecorder.ts`.
      */
     const ctx = new AudioContext({ latencyHint: 0.03 });
     ctxRef.current = ctx;

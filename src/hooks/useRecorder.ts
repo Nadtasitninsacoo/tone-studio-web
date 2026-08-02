@@ -160,6 +160,15 @@ interface Engine {
   /** Per-channel level into the monitor bus. Zero is off. */
   rigWet: Record<Instrument, GainNode>;
   /**
+   * Which of those actually reach `mixBus` right now.
+   *
+   * A channel that is off is disconnected, not just turned down, because Web Audio runs
+   * a node based on whether it has a path to `destination` and not on whether it is
+   * audible. Six chains left attached is six chains computed every quantum — which is
+   * what made the monitor stutter. Bookkeeping, because Web Audio cannot be asked.
+   */
+  rigWetConnected: Record<Instrument, boolean>;
+  /**
    * The chain whose gate and limiter meters are being reported.
    *
    * Deliberately NOT between `input` and the capture worklet. Takes are recorded
@@ -208,6 +217,35 @@ interface Engine {
   chunks: Float32Array[][];
   channels: number;
 }
+
+/**
+ * The monitor context's buffer, in seconds. **Not `'interactive'`, and this is why.**
+ *
+ * `'interactive'` asks for the smallest buffer the machine will give — 128 frames, about
+ * 3 ms. That was right when this hook drove one guitar through one rack, and the comment
+ * in `useMixer.ts` says as much: it explains that the desk needs 30 ms *because* it runs
+ * three rig chains, and that the recorder can stay at 3 ms because it does not.
+ *
+ * That premise expired when the rack became six. Every chain is alive permanently — "off"
+ * is a gain of zero, not a teardown — so this context now renders six gates, six limiters,
+ * two convolvers and six oversampled waveshapers inside every 128-sample quantum. That is
+ * twice the desk's load in a tenth of its budget.
+ *
+ * The same comment predicted exactly what happened next: *"a stutter, and then silence
+ * when the output stream gives up."* Both were observed, in that order, on a USB pedal at
+ * 48 kHz. The context went on reporting `state: 'running'` with a clock that kept
+ * advancing, `monitorBus=connected` and every gain at 1.0, while a bare oscillator
+ * connected straight to `destination` produced nothing — and a *fresh* context created in
+ * the same page at the same moment was audible. An overrun output stream is silent, not
+ * broken, and nothing in the API says so.
+ *
+ * 30 ms rather than a guess: it is the value the desk already uses, and the desk was
+ * audible on that machine at the moment this one was not. Matching the thing that works
+ * beats picking a number. The cost is 27 ms of extra monitoring latency, which a player
+ * can feel — so this is a floor to tune down from, not a target. It is worth nothing at
+ * 3 ms if 3 ms is silent.
+ */
+const MONITOR_LATENCY_HINT = 0.03;
 
 /** One choice in the output picker. `deviceId: ''` is the system default. */
 export interface OutputDevice {
@@ -610,11 +648,11 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
         try {
           ctx = new AudioContext(
             deviceRate
-              ? { latencyHint: 'interactive', sampleRate: deviceRate }
-              : { latencyHint: 'interactive' },
+              ? { latencyHint: MONITOR_LATENCY_HINT, sampleRate: deviceRate }
+              : { latencyHint: MONITOR_LATENCY_HINT },
           );
         } catch {
-          ctx = new AudioContext({ latencyHint: 'interactive' });
+          ctx = new AudioContext({ latencyHint: MONITOR_LATENCY_HINT });
         }
         if (deviceRate && ctx.sampleRate !== deviceRate) {
           // Not fatal — capture and the header agree either way now — but it is the
@@ -723,6 +761,7 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
         const startingLevel = getLevelSnapshot();
         const rigs = {} as Record<Instrument, RigChain>;
         const rigWet = {} as Record<Instrument, GainNode>;
+        const rigWetConnected = {} as Record<Instrument, boolean>;
         const ampWet = ctx.createGain();
         const ampDry = ctx.createGain();
         // The dry feed is open only while every channel is off, so bypassing all three
@@ -759,7 +798,21 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
 
           input.connect(chain.input);
           chain.output.connect(wet);
-          wet.connect(mixBus);
+          /**
+           * Only the channels that are on are attached, from the very first quantum.
+           *
+           * Attaching all six and letting the effect detach five of them 80 ms later would
+           * make every arm — including every device recovery, of which there were five in
+           * one session — start with the full six-chain load on the audio thread. That is
+           * the load the output stream gives up under, and giving up is not something it
+           * recovers from by itself.
+           */
+          if (startingEnabled[id]) {
+            wet.connect(mixBus);
+            rigWetConnected[id] = true;
+          } else {
+            rigWetConnected[id] = false;
+          }
 
           // Only the visible rack's meters are reported. Three chains writing to two
           // refs would race, and a gain-reduction readout flickering between three
@@ -817,6 +870,7 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
           monitorConnected: true,
           rigs,
           rigWet,
+          rigWetConnected,
           meteredInstrument: getInstrumentSnapshot(),
           ampWet,
           ampDry,
@@ -1110,21 +1164,21 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
   }, []);
 
   /**
-   * Switch one channel on or off. Crossfaded, so it does not click.
+   * Switch one channel on or off. The store only — the effect below does the audio.
    *
-   * The effect below applies it as well; doing it here too is what makes the switch
-   * feel instant on the page that pressed it rather than a render later.
+   * This used to write the gain here as well, so the switch felt instant on the page that
+   * pressed it rather than a render later. That stopped being safe when a channel started
+   * *leaving the graph* when it is off: the gain and the connection now have to move
+   * together and in order (connect, then ramp up; ramp down, then disconnect), and a
+   * second writer racing the effect turns a crossfade into a click, or connects a node
+   * whose gain is already at full.
+   *
+   * What is lost is one render frame of latency on a button press, which nobody can hear
+   * against a 20 ms ramp. What is gained is the rule this file states everywhere else:
+   * one `AudioParam`, one writer.
    */
   const toggleInstrument = useCallback((which: Instrument) => {
-    const next = toggleInstrumentEnabled(which);
-    const engine = engineRef.current;
-    if (!engine) return;
-    const at = engine.ctx.currentTime;
-    engine.rigWet[which].gain.setTargetAtTime(next ? getLevelSnapshot()[which] : 0, at, 0.02);
-    const anyOn = INSTRUMENTS.some((id) =>
-      id === which ? next : engine.rigWet[id].gain.value > 0,
-    );
-    engine.ampDry.gain.setTargetAtTime(anyOn ? 0 : 1, at, 0.02);
+    toggleInstrumentEnabled(which);
   }, []);
 
   /**
@@ -1175,9 +1229,57 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
     if (!engine) return;
     const at = engine.ctx.currentTime;
     const owns = monitorScope === 'recorder';
+
+    /**
+     * A channel that is off leaves the graph, it does not merely go quiet.
+     *
+     * The same rule as the monitor bus below, one level down, and it is the difference
+     * between this page working and this page stuttering. All six chains are built at arm
+     * time and kept — "off" has always been a gain of zero rather than a teardown, so a
+     * channel comes back instantly and without a click — but a chain whose output still
+     * *reaches* `mixBus` is a chain the render thread computes, silent or not. Six gates,
+     * six limiters, two convolvers and six oversampled waveshapers, every quantum, to
+     * produce one guitar.
+     *
+     * Disconnecting `rigWet` costs none of what the keep-them-alive rule was protecting:
+     * the nodes, their parameters and the tone dialled into them are untouched, and
+     * reconnecting is one call. It only removes the path to `destination`, which is the
+     * only thing Web Audio uses to decide whether to run a node at all.
+     *
+     * Order matters in both directions, for the same reason as the monitor bus: connect
+     * *before* ramping up and ramp down *before* disconnecting, or the reconnection lands
+     * as a step change on a live signal — a click.
+     */
+    const detaching: number[] = [];
     for (const id of INSTRUMENTS) {
-      engine.rigWet[id].gain.setTargetAtTime(enabled[id] && owns ? level[id] : 0, at, 0.02);
+      const audible = enabled[id] && owns;
+      if (audible && !engine.rigWetConnected[id]) {
+        // Silent at the instant of connection, so the ramp below starts from zero rather
+        // than from whatever the parameter was left at when it was detached.
+        engine.rigWet[id].gain.cancelScheduledValues(at);
+        engine.rigWet[id].gain.setValueAtTime(0, at);
+        try {
+          engine.rigWet[id].connect(engine.mixBus);
+          engine.rigWetConnected[id] = true;
+        } catch {
+          // Already attached, or the context went away with the page.
+        }
+      }
+      engine.rigWet[id].gain.setTargetAtTime(audible ? level[id] : 0, at, 0.02);
+      if (!audible && engine.rigWetConnected[id]) {
+        detaching.push(
+          window.setTimeout(() => {
+            try {
+              engine.rigWet[id].disconnect(engine.mixBus);
+              engine.rigWetConnected[id] = false;
+            } catch {
+              // Already detached, or the context went away with the page.
+            }
+          }, 80),
+        );
+      }
     }
+
     const anyOn = INSTRUMENTS.some((id) => enabled[id]);
     engine.ampDry.gain.setTargetAtTime(anyOn || !owns ? 0 : 1, at, 0.02);
 
@@ -1206,18 +1308,25 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
         // Already connected; connecting twice is a no-op in every browser but throwing
         // implementations exist for closed contexts.
       }
-      return;
+    } else {
+      detaching.push(
+        window.setTimeout(() => {
+          try {
+            engine.monitor.disconnect(engine.ctx.destination);
+            engine.monitorConnected = false;
+          } catch {
+            // Already detached, or the context went away with the page.
+          }
+        }, 80),
+      );
     }
 
-    const timer = window.setTimeout(() => {
-      try {
-        engine.monitor.disconnect(engine.ctx.destination);
-        engine.monitorConnected = false;
-      } catch {
-        // Already detached, or the context went away with the page.
-      }
-    }, 80);
-    return () => window.clearTimeout(timer);
+    // One cleanup for every pending detach, the channels' and the bus's alike. A detach
+    // that fires after the state it was scheduled for has been replaced would cut a
+    // channel the player has just switched back on.
+    return () => {
+      for (const timer of detaching) window.clearTimeout(timer);
+    };
   }, [enabled, level, monitorScope]);
 
   /** Start/stop pitch detection. */
