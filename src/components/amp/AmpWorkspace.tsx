@@ -145,7 +145,10 @@ export function AmpWorkspace() {
 
           {/* The meters read the dry input, before the rack — the level that is
               written to disk, and the one worth protecting from clipping. */}
-          <div className="w-64 shrink-0 sm:w-80">
+          {/* `shrink-0` at 20rem was the other half of the overflow: the meter refused to
+              give up a pixel while everything after it ran out of room. It still gets the
+              width when there is width. */}
+          <div className="w-44 shrink lg:w-64 xl:w-80">
             <LevelMeter
               meterRef={recorder.meterRef}
               channels={recorder.format?.channels ?? 1}
@@ -167,7 +170,10 @@ export function AmpWorkspace() {
                 >
                   -
                 </button>
-                <div className="min-w-0 w-32 sm:w-56">
+                {/* Shrinkable for the same reason as the recorder header's copy: this
+                    strip now also carries the handover control, and a pinned width is
+                    what pushes the controls after it off the right edge. */}
+                <div className="min-w-0 w-24 lg:w-36 xl:w-56">
                   <MiniSlider
                     label=""
                     value={recorder.masterVolume}

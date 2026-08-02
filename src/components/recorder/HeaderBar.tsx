@@ -73,7 +73,11 @@ export function HeaderBar({
         <span aria-hidden className="tape-strip absolute inset-x-0 top-0 h-0.5 animate-tape" />
       ) : null}
 
-      <div className="mx-auto flex max-w-[1600px] flex-col gap-2.5 py-2.5 pr-3 pl-14 sm:py-3 sm:pr-6 lg:pl-6 md:flex-row md:items-center md:gap-4">
+      {/* `flex-wrap` is load-bearing, not tidiness. This row carries the brand, the format
+          chips, the meter, the master fader, the device picker, the handover control and
+          the status badge; without permission to wrap it simply overflows the viewport and
+          the controls on the right end up off-screen and unreachable. */}
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-2.5 py-2.5 pr-3 pl-14 sm:py-3 sm:pr-6 lg:pl-6 md:flex-row md:flex-wrap md:items-center md:gap-4">
         {/* Row 1 — brand, format readout, status, theme */}
         <div className="flex min-w-0 items-center gap-3">
           <span
@@ -117,7 +121,7 @@ export function HeaderBar({
         </div>
 
         {/* Row 2 on phones — input routing, full width for an easy tap target */}
-        <div className="flex items-center gap-2 md:ml-auto md:gap-3">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 md:ml-auto md:gap-3">
           {permission === 'granted' && (
             <div className="mr-2 hidden md:block">
               <LevelMeter
@@ -141,7 +145,10 @@ export function HeaderBar({
                 >
                   -
                 </button>
-                <div className="min-w-0 w-32 sm:w-56">
+                {/* Shrinkable, and the widest thing in the row by far. Pinned at `w-56`
+                    it was what pushed everything after it past the right edge on a laptop
+                    with the sidebar open. */}
+                <div className="min-w-0 w-24 lg:w-36 xl:w-56">
                   <MiniSlider
                     label=""
                     value={masterVolume}
