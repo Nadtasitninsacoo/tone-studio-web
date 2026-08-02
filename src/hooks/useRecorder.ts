@@ -36,11 +36,14 @@ import {
   getMasterVolume,
   getMonitorScope,
   getRigQuality,
+  getMonitorBufferMs,
   getServerMasterVolume,
   getServerMonitorScope,
   getServerRigQuality,
+  getServerMonitorBufferMs,
   setMasterVolume,
   setRigQuality,
+  setMonitorBufferMs,
 } from '@/lib/ampStore';
 import type { BassSettings } from '@/lib/bassFx';
 import type { DrumSettings } from '@/lib/drumFx';
@@ -431,7 +434,6 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
    * fixed for its life, so `arm` has to read the current value when it builds a new one —
    * including on a device recovery, which happens without anyone pressing anything.
    */
-  const [bufferMs, setBufferMs] = useState<number>(DEFAULT_BUFFER_MS);
   const bufferMsRef = useRef<number>(DEFAULT_BUFFER_MS);
 
   useEffect(() => {
@@ -476,6 +478,12 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
   );
   /** How much of every chain is in the path. See `lib/bypass.ts`. */
   const rigQuality = useSyncExternalStore(subscribeAmp, getRigQuality, getServerRigQuality);
+  /** Shared with the desk: one machine, one buffer. See `lib/ampStore.ts`. */
+  const bufferMs = useSyncExternalStore(
+    subscribeAmp,
+    getMonitorBufferMs,
+    getServerMonitorBufferMs,
+  );
   /** Gain reduction reported by the two worklets, in dB. Painted from rAF. */
   const gateReductionRef = useRef(0);
   const limiterReductionRef = useRef(0);
@@ -977,7 +985,7 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
     (next: number) => {
       if (bufferMsRef.current === next) return;
       bufferMsRef.current = next;
-      setBufferMs(next);
+      setMonitorBufferMs(next);
       // Nothing to rebuild until there is something to rebuild. The next `arm` reads the
       // ref, so an unarmed change simply applies when the device opens.
       const deviceId = activeDeviceIdRef.current;
@@ -1142,6 +1150,10 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
 
   // The device `changeBufferMs` has to come back up on. Assigned rather than depended on,
   // so changing inputs does not rebuild every consumer of this hook.
+  useEffect(() => {
+    bufferMsRef.current = bufferMs;
+  }, [bufferMs]);
+
   useEffect(() => {
     activeDeviceIdRef.current = activeDeviceId;
     activeDeviceLabelRef.current = activeDeviceLabel;

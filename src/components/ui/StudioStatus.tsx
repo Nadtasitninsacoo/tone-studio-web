@@ -116,9 +116,13 @@ export function StudioStatus({ isCollapsed }: StudioStatusProps) {
       </span>
 
       <dl className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 font-mono text-[9px] tracking-wider uppercase">
+        {/* Names the side, never "here". This block is mounted in the sidebar, which is on
+            every page — so "here" read as "this page owns the sound" while standing on the
+            mixer with the Rig side owning it, which is precisely the thing it exists to
+            report and precisely backwards. */}
         <dt className="text-ink-3">Monitor</dt>
-        <dd className={`text-right ${ownsMonitor ? 'text-cyan' : 'text-ink-3/60'}`}>
-          {ownsMonitor ? 'here' : 'mixer'}
+        <dd className={`text-right ${ownsMonitor ? 'text-cyan' : 'text-amber'}`}>
+          {ownsMonitor ? 'rig' : 'mixer'}
         </dd>
 
         <dt className="text-ink-3">Racks</dt>

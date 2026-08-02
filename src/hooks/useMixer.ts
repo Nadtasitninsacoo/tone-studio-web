@@ -3,12 +3,22 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { amplitudeToDb, computePeaks, encodeWav, peakDbOf } from '@/lib/audio';
-import { getRigSnapshot, getServerRigSnapshot, subscribeAmp } from '@/lib/ampStore';
 import { resumeOnGesture, watchAudioContext } from '@/lib/contextHealth';
 import { acquireInput, type InputHealth, type InputLease } from '@/lib/inputSession';
 import { mediaErrorMessage } from '@/lib/mediaErrors';
 import { filenameStamp } from '@/lib/format';
 import { DEFAULT_MP3_KBPS, encodeMp3 } from '@/lib/mp3';
+import {
+  getMonitorBufferMs,
+  getRigQuality,
+  getRigSnapshot,
+  getServerMonitorBufferMs,
+  getServerRigQuality,
+  getServerRigSnapshot,
+  setMonitorBufferMs,
+  setRigQuality,
+  subscribeAmp,
+} from '@/lib/ampStore';
 import {
   audibleChannelIds,
   channelLength,
@@ -173,6 +183,13 @@ export function useMixer() {
    * one the player set. See `lib/ampStore.ts`.
    */
   const rig = useSyncExternalStore(subscribeAmp, getRigSnapshot, getServerRigSnapshot);
+  /** Shared with the recorder: one machine, one buffer, one quality mode. */
+  const rigQuality = useSyncExternalStore(subscribeAmp, getRigQuality, getServerRigQuality);
+  const bufferMs = useSyncExternalStore(
+    subscribeAmp,
+    getMonitorBufferMs,
+    getServerMonitorBufferMs,
+  );
 
   const ctxRef = useRef<AudioContext | null>(null);
   const graphRef = useRef<MixGraph | null>(null);
@@ -449,7 +466,9 @@ export function useMixer() {
      * predicted above, and the desk staying audible while the Rig page was silent is what
      * finally identified it. See `MONITOR_LATENCY_HINT` in `useRecorder.ts`.
      */
-    const ctx = new AudioContext({ latencyHint: 0.03 });
+    // From the shared store, not a constant: the buffer describes the machine, and the
+    // player has already had to find the right one on the Rig page. See `lib/ampStore.ts`.
+    const ctx = new AudioContext({ latencyHint: getMonitorBufferMs() / 1000 });
     ctxRef.current = ctx;
     /**
      * A refused `resume()` must NOT abort building the engine.
@@ -545,6 +564,49 @@ export function useMixer() {
     }
     lastAppliedStateRef.current = current;
   }, [state, rebuild]);
+
+  /**
+   * Push the quality mode into every rack this desk holds.
+   *
+   * The desk builds the same `RigChain`s the Rig page does — one per channel that has both
+   * an insert and a source — so it pays the same twelve-worklets-per-six-racks cost and
+   * needs the same lever. Walking the graph rather than threading the mode through
+   * `buildMixGraph` keeps that function's signature about the mix and not about the
+   * machine; a rebuild re-applies it below.
+   */
+  useEffect(() => {
+    const graph = graphRef.current;
+    if (!graph) return;
+    for (const nodes of graph.channels.values()) nodes.rack?.setQuality(rigQuality);
+  }, [rigQuality, state]);
+
+  /**
+   * A buffer change reaches this context only by building a new one.
+   *
+   * `latencyHint` is fixed for a context's life, and the desk's is read in `ensureEngine`.
+   * Closing it here is safe precisely when the desk is idle — the decoded takes are
+   * `AudioBuffer`s, which belong to no context and survive — and refusing to close it while
+   * something is playing is the point: a rebuild mid-playback is a worse outcome than a
+   * buffer that applies a moment later.
+   */
+  const lastBufferRef = useRef(bufferMs);
+  useEffect(() => {
+    if (lastBufferRef.current === bufferMs) return;
+    const ctx = ctxRef.current;
+    if (!ctx || status !== 'idle') return;
+    lastBufferRef.current = bufferMs;
+    ctxRef.current = null;
+    graphRef.current = null;
+    lastAppliedStateRef.current = null;
+    stopHealthRef.current();
+    stopGestureRef.current();
+    isParkedRef.current = false;
+    void ctx.close().catch(() => {
+      // Already closing. The refs are cleared either way, so the next `ensureEngine`
+      // builds a fresh one at the new buffer.
+    });
+    logEventRef.current(`buffer changed to ${bufferMs} ms — engine will rebuild`);
+  }, [bufferMs, status]);
 
   /**
    * Park the whole context while nobody is listening to this desk.
@@ -1726,6 +1788,17 @@ export function useMixer() {
     setInsertLevel,
     setInsertEnabled,
     putLiveOnInsert,
+    /**
+     * The machine's two settings, shared with the recorder — see `lib/ampStore.ts`.
+     *
+     * Exposed from here as well so the desk can carry the same controls: a player who
+     * found the buffer this laptop needs should not have to find it twice, and the mode
+     * governs the desk's racks exactly as it governs the Rig page's.
+     */
+    bufferMs,
+    changeBufferMs: setMonitorBufferMs,
+    rigQuality,
+    changeRigQuality: setRigQuality,
     /** The last few audio transitions, newest first. For when a silence needs explaining. */
     events,
     setChannelPan,

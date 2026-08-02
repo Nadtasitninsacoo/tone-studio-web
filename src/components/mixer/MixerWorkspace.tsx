@@ -226,6 +226,39 @@ export function MixerWorkspace() {
                 on arrival until someone asks for it. See `MonitorHandover`. */}
             <MonitorHandover scope="mixer" here="หน้ามิกเซอร์" there="หน้า Rig" />
 
+            {/* The same two machine settings as the Rig page, not a second pair. The desk
+                builds the same rig chains and pays the same cost, and a player who found
+                what this laptop needs should not have to find it again here. */}
+            <select
+              value={mixer.bufferMs}
+              onChange={(event) => mixer.changeBufferMs(Number(event.target.value))}
+              title="บัฟเฟอร์มอนิเตอร์ ใช้ร่วมกับหน้า Rig — เปลี่ยนได้ตอนหยุดเล่นเท่านั้น"
+              className="h-7 shrink-0 rounded-lg border border-line bg-raised px-2 font-mono text-[10px] text-ink outline-none focus-visible:border-cyan/60"
+            >
+              {[10, 30, 60, 120].map((ms) => (
+                <option key={ms} value={ms}>
+                  {ms} ms
+                </option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              onClick={() => mixer.changeRigQuality(mixer.rigQuality === 'full' ? 'light' : 'full')}
+              title={
+                mixer.rigQuality === 'full'
+                  ? 'FULL — gate, limiter และ oversampling ครบทุกแร็ค กดเพื่อสลับเป็น LIGHT'
+                  : 'LIGHT — ถอด gate/limiter worklet ออกทุกแร็ค เพื่อเปิดหลายช่องพร้อมกัน'
+              }
+              className={`flex h-7 shrink-0 items-center rounded-lg border px-2.5 font-mono text-[10px] font-bold tracking-wider uppercase transition-colors duration-150 ${
+                mixer.rigQuality === 'full'
+                  ? 'border-cyan/50 bg-cyan/12 text-cyan'
+                  : 'border-amber/60 bg-amber/12 text-amber'
+              }`}
+            >
+              {mixer.rigQuality === 'full' ? 'Full' : 'Light'}
+            </button>
+
             {/* Color preset switcher */}
             <button
               type="button"

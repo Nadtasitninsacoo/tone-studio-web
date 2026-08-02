@@ -117,6 +117,20 @@ let monitorScope: MonitorScope = 'recorder';
  */
 let rigQuality: RigQuality = 'full';
 
+/**
+ * The monitor buffer, in milliseconds, for **both** engines.
+ *
+ * One value rather than one per engine, because it describes the machine and not the page.
+ * A player who has just discovered that this laptop needs 60 ms to carry five racks should
+ * not have to discover it again on the desk, and two numbers for one fact is how they end
+ * up disagreeing.
+ *
+ * 30 ms is the default for the reason recorded in `useRecorder.ts`: it is what the desk was
+ * already using on the machine where 3 ms had gone silent. It is a starting point to tune
+ * from in either direction, which is why it is a control at all.
+ */
+let monitorBufferMs = 30;
+
 const listeners = new Set<() => void>();
 
 function emit(): void {
@@ -205,6 +219,20 @@ export function getServerRigQuality(): RigQuality {
 export function setRigQuality(next: RigQuality): void {
   if (rigQuality === next) return;
   rigQuality = next;
+  emit();
+}
+
+export function getMonitorBufferMs(): number {
+  return monitorBufferMs;
+}
+
+export function getServerMonitorBufferMs(): number {
+  return 30;
+}
+
+export function setMonitorBufferMs(next: number): void {
+  if (monitorBufferMs === next) return;
+  monitorBufferMs = next;
   emit();
 }
 
