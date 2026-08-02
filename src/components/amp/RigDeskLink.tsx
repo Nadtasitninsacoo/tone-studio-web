@@ -65,7 +65,11 @@ export function RigDeskLink() {
       ) : (
         <Unlink aria-hidden className="h-3.5 w-3.5" />
       )}
-      {linked ? 'เชื่อมมิกเซอร์' : 'แยกจากมิกเซอร์'}
+      {/* "บริดจ์: เปิด/ปิด", not "เชื่อม/แยก". The bare state word was read as the action —
+          a red button saying "separated from mixer" was taken to mean it had just been
+          connected. A label that names the control and then its state cannot be read as
+          an instruction. */}
+      {linked ? 'บริดจ์ · เปิด' : 'บริดจ์ · ปิด'}
     </button>
   );
 }

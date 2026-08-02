@@ -215,25 +215,46 @@ function MixerChannel({
             the one carrying the input, the knobs act on the signal whether or not any
             mixer channel holds a source, so the desk's emptiness is not the answer to the
             question this line asks. */}
-        {hasLiveFeed ? (
+        {/* Two separate facts, and merging them was a lie.
+              - Is this rack being fed *right now*? True while this page owns the monitor.
+              - Does the desk strip carrying it have a source of its own?
+            The first version reported only the second and printed "ไม่มีสัญญาณ" beside
+            meters reading −1.6 dBFS. The fix overshot: it reported only the first, so all
+            six rows claimed a live desk channel while the desk showed seven NO SOURCE. Both
+            get said now, and the strip that is still empty keeps its one-click offer. */}
+        {playing.length > 0 ? (
           <p className="truncate font-mono text-[8px] leading-tight tracking-[0.1em] uppercase text-ink-3">
-            <span className="text-cyan">● สัญญาณสด{carrier ? ` · ${carrier.name}` : ''}</span>
+            <span className="text-cyan">● {carrier?.name}</span>
+          </p>
+        ) : hasLiveFeed ? (
+          <p className="truncate font-mono text-[8px] leading-tight tracking-[0.1em] uppercase text-ink-3">
+            <span className="text-cyan">● สัญญาณสด</span>
+            {carrier ? (
+              <>
+                {' · '}
+                <button
+                  type="button"
+                  onClick={() => onPutLive?.(id)}
+                  disabled={!isArmed || !onPutLive}
+                  title={`${carrier.name} ยังไม่มีสัญญาณบนมิกเซอร์ — กดเพื่อใส่ให้`}
+                  className="text-amber underline decoration-dotted disabled:no-underline disabled:opacity-60"
+                >
+                  {carrier.name} ว่าง
+                </button>
+              </>
+            ) : null}
           </p>
         ) : carrier ? (
           <p className="truncate font-mono text-[8px] leading-tight tracking-[0.1em] uppercase text-ink-3">
-            {playing.length > 0 ? (
-              <span className="text-cyan">● {carrier.name}</span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onPutLive?.(id)}
-                disabled={!isArmed || !onPutLive}
-                title={`${carrier.name} carries this rack but is playing nothing — put the live input on it`}
-                className="text-rec underline decoration-dotted disabled:no-underline disabled:opacity-60"
-              >
-                ○ {carrier.name} · ไม่มีสัญญาณ
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => onPutLive?.(id)}
+              disabled={!isArmed || !onPutLive}
+              title={`${carrier.name} carries this rack but is playing nothing — put the live input on it`}
+              className="text-rec underline decoration-dotted disabled:no-underline disabled:opacity-60"
+            >
+              ○ {carrier.name} · ไม่มีสัญญาณ
+            </button>
           </p>
         ) : null}
 
