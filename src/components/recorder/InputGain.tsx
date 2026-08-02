@@ -87,7 +87,7 @@ export function InputGain({ gainDb, disabled, onGainChange, hudColor = 'green' }
             className="absolute h-full w-full opacity-0 cursor-pointer pointer-events-auto z-30"
             style={{
               writingMode: 'vertical-lr',
-              WebkitAppearance: 'slider-vertical' as any,
+              direction: 'rtl',
             }}
           />
 

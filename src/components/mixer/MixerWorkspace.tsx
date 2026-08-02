@@ -39,12 +39,6 @@ const HUD_COLORS = {
 
 type HudColorType = keyof typeof HUD_COLORS;
 
-declare module 'react' {
-  interface CSSProperties {
-    WebkitAppearance?: 'slider-vertical' | string;
-  }
-}
-
 export function MixerWorkspace() {
   const router = useRouter();
   // recorder unused
@@ -614,7 +608,7 @@ export function MixerWorkspace() {
                   className="absolute h-full w-full opacity-0 cursor-pointer pointer-events-auto z-20"
                   style={{
                     writingMode: 'vertical-lr',
-                    WebkitAppearance: 'slider-vertical',
+                    direction: 'rtl',
                   }}
                 />
 

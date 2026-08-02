@@ -3,12 +3,6 @@
 import React, { useRef, useEffect } from 'react';
 import type { StripMeter } from '@/hooks/useMixer';
 
-declare module 'react' {
-  interface CSSProperties {
-    WebkitAppearance?: 'slider-vertical' | string;
-  }
-}
-
 interface MixerChannelStripProps {
   channelId: string;
   name: string;
@@ -252,7 +246,7 @@ export function MixerChannelStrip({
           className="absolute h-full w-full opacity-0 cursor-pointer pointer-events-auto z-20"
           style={{
             writingMode: 'vertical-lr',
-            WebkitAppearance: 'slider-vertical',
+            direction: 'rtl',
           }}
         />
 
