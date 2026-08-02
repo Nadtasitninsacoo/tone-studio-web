@@ -15,7 +15,6 @@ import {
   getRigDeskLink,
   getServerRigDeskLink,
 } from '@/lib/ampStore';
-import { RigDeskLink } from '@/components/amp/RigDeskLink';
 import { useHudColor } from '@/hooks/useHudColor';
 import { setHudColor as setHudColorStore, type HudColor } from '@/lib/hudColor';
 // Instrument type removed as unused
@@ -257,10 +256,11 @@ export function MixerWorkspace() {
           </div>
 
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-2.5">
-            {/* The one control that decides whether this desk is audible. The same switch
-                as the Rig page's, on the store, so either page can reach it — a desk you
-                cannot switch on from the desk is not a switch. */}
-            <RigDeskLink />
+            {/* No bridge switch here on purpose. It has one home, the Rig page's RIG MIXER
+                header, because that is where the chain starts — and two copies of one
+                switch is what the handover control already taught. The parked banner above
+                still offers to turn it on, which is a way out at the moment it is the thing
+                in your way rather than a second place to keep it. */}
 
             {/* The same two machine settings as the Rig page, not a second pair. The desk
                 builds the same rig chains and pays the same cost, and a player who found
