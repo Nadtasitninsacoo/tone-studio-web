@@ -1333,10 +1333,18 @@ export function useMixer() {
     (instrument: Instrument) => {
       const target = stateRef.current.channels.find((channel) => channel.insert === instrument);
       if (!target) return;
-      // `true`: this is the *move*. The link that calls it says a rack has no signal, and
-      // answering it by adding a seventh live channel is not what it offered.
-      takeLiveInputRef.current(target.id, true);
-      logEvent(`live input moved to ${target.name} (${instrument})`);
+      /**
+       * Additive, and this was got wrong once already.
+       *
+       * It was exclusive on the reasoning that a link reading "this rack has no signal"
+       * offers to *move* the input rather than to add a seventh live channel. Watching it
+       * used settled it the other way: the player is asking for **this rack to be fed**, not
+       * for another one to be starved, and clicking down the row to bring six racks up is
+       * the actual workflow. Exclusive turned that into one live channel being shuffled
+       * between six strips, which looks exactly like the click not working.
+       */
+      takeLiveInputRef.current(target.id);
+      logEvent(`live input added to ${target.name} (${instrument})`);
     },
     [logEvent],
   );

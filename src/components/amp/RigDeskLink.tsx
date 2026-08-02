@@ -45,16 +45,25 @@ export function RigDeskLink() {
           : 'แยกกันอยู่ — ระดับที่นี่คือระดับมอนิเตอร์ ไม่แตะบาลานซ์บนมิกเซอร์ กดเพื่อเชื่อม'
       }
       aria-pressed={linked}
-      className={`flex h-6 shrink-0 items-center gap-1 rounded-md border px-1.5 font-mono text-[9px] font-bold tracking-wider uppercase transition-colors duration-150 ${
+      /*
+       * Loud on purpose, and red **against** this app's own convention.
+       *
+       * The rule everywhere else here is that red means live or broken, and `separated` is
+       * neither — it is the recommended default. It is red because the first two versions
+       * could not be found at all: 24px of grey text beside a grey label reads as part of
+       * the label. Asked for explicitly, and easy to move to amber (which is what LIGHT
+       * mode uses for "deliberate, not wrong") if it ever starts reading as a fault.
+       */
+      className={`flex h-7 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 font-mono text-[10px] font-bold tracking-wider uppercase transition-colors duration-150 ${
         linked
-          ? 'border-cyan/50 bg-cyan/12 text-cyan'
-          : 'border-line text-ink-3 hover:border-cyan/40 hover:text-ink-2'
+          ? 'border-cyan/60 bg-cyan/15 text-cyan shadow-sm shadow-cyan/15'
+          : 'border-rec bg-rec/25 text-rec shadow-md shadow-rec/25 hover:bg-rec/40 hover:text-white'
       }`}
     >
       {linked ? (
-        <Link2 aria-hidden className="h-3 w-3" />
+        <Link2 aria-hidden className="h-3.5 w-3.5" />
       ) : (
-        <Unlink aria-hidden className="h-3 w-3" />
+        <Unlink aria-hidden className="h-3.5 w-3.5" />
       )}
       {linked ? 'เชื่อมมิกเซอร์' : 'แยกจากมิกเซอร์'}
     </button>

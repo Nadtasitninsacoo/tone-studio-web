@@ -253,6 +253,27 @@ export function AmpWorkspace() {
         {/* This page owns the live monitor while it is on screen (see the route watcher in
             StudioProviders), so a muted monitor switch here means silence with no other
             explanation. Says so, and offers the one click that fixes it. */}
+        {/* The desk owns the sound. Without this the page reads as dead — its own meters
+            are still, its gain reduction sits at zero, and the natural conclusion is that
+            the racks stopped working. They did not: the desk plays these same racks, so
+            every knob here is shaping what is coming out right now. Only the recorder's
+            duplicate monitor path is switched off, and that is the whole point of the
+            handover. Saying so is the difference between a design and a mystery. */}
+        {isArmed && !hasLiveFeed ? (
+          <div
+            role="status"
+            className="flex animate-rise-in items-center gap-2 rounded-lg border border-cyan/40 bg-cyan/8 px-3 py-2 text-[11px] text-ink-2"
+          >
+            <Radio aria-hidden className="h-3.5 w-3.5 shrink-0 text-cyan" />
+            <p className="min-w-0 flex-1">
+              เสียงกำลังออกทาง<span className="font-semibold text-cyan">มิกเซอร์</span> —
+              ปุ่มปรับโทนที่นี่ <span className="font-semibold text-ink">ยังมีผลกับเสียงที่ได้ยินอยู่</span>{' '}
+              เพราะช่องบนมิกเซอร์เล่นผ่านแร็คชุดเดียวกันนี้ มิเตอร์กับ GR ในหน้านี้ถึงนิ่ง
+              (นั่นคือสายมอนิเตอร์ของหน้านี้ที่ถูกปิดไว้ ไม่ใช่ตัวแร็ค)
+            </p>
+          </div>
+        ) : null}
+
         {isArmed && !recorder.isMonitoring ? (
           <div
             role="status"
