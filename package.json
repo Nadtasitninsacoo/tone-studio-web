@@ -1,14 +1,18 @@
 {
-  "name": "frontend",
+  "name": "guitar-recorder-web",
   "version": "0.1.0",
   "private": true,
+  "description": "Browser recorder and video editor for the M-VAVE Tank-G, over USB-C.",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3001",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3001",
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
+    "@breezystack/lamejs": "^1.2.7",
+    "lucide-react": "^1.27.0",
     "next": "16.2.12",
     "react": "19.2.4",
     "react-dom": "19.2.4"
