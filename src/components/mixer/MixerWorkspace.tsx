@@ -12,6 +12,10 @@ import {
   getServerRigSnapshot,
   setBassSettings,
   setMonitorScope,
+  getMonitorScope,
+  getServerMonitorScope,
+  getRigDeskLink,
+  getServerRigDeskLink,
 } from '@/lib/ampStore';
 import { MonitorHandover } from '@/components/ui/MonitorHandover';
 import { useHudColor } from '@/hooks/useHudColor';
@@ -93,6 +97,16 @@ export function MixerWorkspace() {
    * this reason; see `lib/ampStore.ts`.
    */
   const rigStore = useSyncExternalStore(subscribeAmp, getRigSnapshot, getServerRigSnapshot);
+  /**
+   * Who the sound is coming out of, from the one place that decides it.
+   *
+   * The desk is audible when it owns the monitor, or when the bridge has both sides live.
+   * Read from the store rather than from the desk's own `monitorLive` copy, because the two
+   * were disagreeing and the page was reporting the wrong one.
+   */
+  const monitorScope = useSyncExternalStore(subscribeAmp, getMonitorScope, getServerMonitorScope);
+  const rigDeskLink = useSyncExternalStore(subscribeAmp, getRigDeskLink, getServerRigDeskLink);
+  const deskOwnsSound = monitorScope === 'mixer' || rigDeskLink;
 
   // Selected tab in the right panel: 'mixer' | 'dsp'
   const [activeTab, setActiveTab] = useState<'mixer' | 'dsp'>('dsp');
@@ -300,14 +314,23 @@ export function MixerWorkspace() {
           </div>
         </div>
 
-        {/* Parked, and nothing on this page said so.
+        {/* Keyed on `monitorScope`, the same value the sidebar and the handover button
+            read — **not** on the desk's own `monitorLive` copy.
+
+            Those were two answers to one question and they disagreed: the sidebar said
+            MONITOR: RIG while this banner stayed hidden, so the page showed live meters and
+            no explanation of why its faders did nothing audible. Which copy was stale
+            hardly matters — asking twice is the bug, and this page asks the store now, like
+            everything else that reports ownership.
+
+            Parked, and nothing on this page said so.
             When the Rig side owns the monitor the desk's whole `AudioContext` is
             suspended — that is what stops it running a rig chain per strip on a second
             render thread while another page is making the sound. But a suspended context
             computes nothing, so every analyser reads nothing and all eight meters sit
             dark. That is indistinguishable from a desk with no signal, and it was read
             as exactly that. The one press that fixes it is named. */}
-        {!mixer.state.monitorLive ? (
+        {!deskOwnsSound ? (
           <div
             role="status"
             className="flex animate-rise-in items-center gap-2 rounded-xl border border-amber/45 bg-amber/8 px-4 py-2.5 text-[11px] text-ink-2"
