@@ -52,7 +52,17 @@ export function StudioStatus({ isCollapsed }: StudioStatusProps) {
 
   const isLive = recorder.status !== 'idle' && recorder.status !== 'error';
   const liveRacks = INSTRUMENTS.filter((id) => recorder.enabled[id]).length;
-  const ownsMonitor = recorder.monitorScope === 'recorder';
+  /**
+   * From `ownsMonitor`, not from `monitorScope`.
+   *
+   * `monitorScope` says which side the handover last pointed at, and nothing writes it any
+   * more. Whether this engine is actually feeding the room is the bridge's business now:
+   * bridged, the chain ends at the desk and this bus is closed. Reading the older value
+   * meant the sidebar reported MONITOR: RIG while the desk was the one making the sound —
+   * the same two-answers-to-one-question bug the mixer's banner had.
+   */
+  const ownsMonitor = recorder.ownsMonitor;
+  const bridged = !ownsMonitor;
 
   /**
    * A callback ref, not a ref object handed back from a hook.
@@ -76,7 +86,7 @@ export function StudioStatus({ isCollapsed }: StudioStatusProps) {
   if (isCollapsed) {
     return (
       <div
-        title={`${isLive ? 'Signal open' : 'No input'} · ${liveRacks} racks · ${recorder.bufferMs} ms · ${recorder.rigQuality}`}
+        title={`${isLive ? 'Signal open' : 'No input'} · ${liveRacks} racks · bridge ${bridged ? 'on' : 'off'} · ${recorder.bufferMs} ms · ${recorder.rigQuality}`}
         className="flex flex-col items-center gap-1 py-1"
       >
         <span
@@ -123,6 +133,15 @@ export function StudioStatus({ isCollapsed }: StudioStatusProps) {
         <dt className="text-ink-3">Monitor</dt>
         <dd className={`text-right ${ownsMonitor ? 'text-cyan' : 'text-amber'}`}>
           {ownsMonitor ? 'rig' : 'mixer'}
+        </dd>
+
+        {/* A second, always-visible readout of the bridge. The switch itself is a small
+            control in one page's header, and "is the bridge on" was asked repeatedly while
+            looking straight at it. A status panel that is on every page can answer without
+            being hunted for. */}
+        <dt className="text-ink-3">Bridge</dt>
+        <dd className={`text-right ${bridged ? 'text-cyan' : 'text-ink-3/60'}`}>
+          {bridged ? 'on' : 'off'}
         </dd>
 
         <dt className="text-ink-3">Racks</dt>
