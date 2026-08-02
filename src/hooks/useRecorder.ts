@@ -403,7 +403,21 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
   const [activeDeviceLabel, setActiveDeviceLabel] = useState<string>('No input');
   const [gainDb, setGainDb] = useState(0);
   const [isMonitoring, setIsMonitoring] = useState(false);
-  const [recordSource, setRecordSource] = useState<'dry' | 'wet'>('wet');
+  /**
+   * **`dry`**, which is what this app has always said it does and had stopped doing.
+   *
+   * `AGENTS.md` states the rule — takes are captured dry, tapped before the amp, so the
+   * tone stays editable after the take, because the one thing anybody wants to change
+   * afterwards is the tone. The listening strip's own comment says the meters read the dry
+   * input for the same reason: it is the level written to disk and the one worth protecting
+   * from clipping. The default was `wet`, so neither was true.
+   *
+   * It also costs. `wet` means the meters and the capture worklet read from `mixBus`, which
+   * only carries anything while the rig chains are connected — so every chain has to run
+   * even when nothing is listening to this engine. Bridged, that is six chains kept alive
+   * to feed a meter, beside the desk's six doing the actual work.
+   */
+  const [recordSource, setRecordSource] = useState<'dry' | 'wet'>('dry');
   const recordSourceRef = useRef<'dry' | 'wet'>('wet');
   /**
    * Where this context's sound comes out, and the list to choose from.
@@ -1388,9 +1402,22 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
      * What is gone is the idea that a channel stops existing because another page is the
      * one making the sound.
      */
+    /**
+     * A chain runs when it is **heard or recorded**, and not otherwise.
+     *
+     * Two things read the far end of these chains: the monitor bus, and — only while
+     * `recordSource` is `wet` — the meters and the capture worklet. Gating on `enabled`
+     * alone kept all six alive whenever this engine was not the one sounding, which is
+     * twice the DSP for nothing; gating on ownership alone silenced the meters and would
+     * have written an empty take. It is the union of the two, stated once.
+     *
+     * On the default `dry` path this means the whole rack leaves the graph the moment the
+     * desk takes the chain, which is the saving the bridge needs to be affordable.
+     */
+    const wetCapture = recordSource === 'wet';
     const detaching: number[] = [];
     for (const id of INSTRUMENTS) {
-      const audible = enabled[id];
+      const audible = enabled[id] && (owns || wetCapture);
       if (audible && !engine.rigWetConnected[id]) {
         // Silent at the instant of connection, so the ramp below starts from zero rather
         // than from whatever the parameter was left at when it was detached.
@@ -1421,8 +1448,11 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
     // Same rule: the dry feed exists so a session with every rack off still has something
     // to hear *and to record*. Cutting it because the desk owns the speakers left the
     // capture path with no signal at all.
+    // The dry feed into `mixBus` exists so a session with every rack off still has
+    // something to hear, and something to record on the `wet` path. Neither is true when
+    // this engine is neither sounding nor being recorded through the racks.
     const anyOn = INSTRUMENTS.some((id) => enabled[id]);
-    engine.ampDry.gain.setTargetAtTime(anyOn ? 0 : 1, at, 0.02);
+    engine.ampDry.gain.setTargetAtTime(anyOn || !(owns || wetCapture) ? 0 : 1, at, 0.02);
 
     /**
      * Gain zero is not enough: the bus has to leave the graph.
@@ -1468,7 +1498,7 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
     return () => {
       for (const timer of detaching) window.clearTimeout(timer);
     };
-  }, [enabled, level, ownsMonitor]);
+  }, [enabled, level, ownsMonitor, recordSource]);
 
   /** Start/stop pitch detection. */
   const toggleTuner = useCallback(() => {
