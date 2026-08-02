@@ -64,18 +64,23 @@ export function RigDeskLink() {
       }
       aria-pressed={linked}
       /*
-       * Loud on purpose, and red **against** this app's own convention.
+       * Lit when on, dim when off — the convention every other switch in this app uses, and
+       * a correction of two earlier attempts.
        *
-       * The rule everywhere else here is that red means live or broken, and `separated` is
-       * neither — it is the recommended default. It is red because the first two versions
-       * could not be found at all: 24px of grey text beside a grey label reads as part of
-       * the label. Asked for explicitly, and easy to move to amber (which is what LIGHT
-       * mode uses for "deliberate, not wrong") if it ever starts reading as a fault.
+       * It was first too quiet to find: 24px of grey text beside a grey label reads as part
+       * of the label. Then it was made loud in **red**, which was asked for and which I
+       * flagged at the time as fighting the app's own rule that red means live or broken.
+       * It did exactly that: a red button reading `บริดจ์ · ปิด` was read as the bridge
+       * being ON, twice, and the mixer sat silent while it was believed to be running.
+       *
+       * Loud and wrong is worse than quiet and wrong. Cyan for on, neutral for off, the
+       * same as MONITOR and every rack's power switch — and it keeps the size and the
+       * border that made it findable.
        */
       className={`flex h-7 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 font-mono text-[10px] font-bold tracking-wider uppercase transition-colors duration-150 ${
         linked
-          ? 'border-cyan/60 bg-cyan/15 text-cyan shadow-sm shadow-cyan/15'
-          : 'border-rec bg-rec/25 text-rec shadow-md shadow-rec/25 hover:bg-rec/40 hover:text-white'
+          ? 'border-cyan bg-cyan/20 text-cyan shadow-md shadow-cyan/25'
+          : 'border-line-strong bg-inset text-ink-3 hover:border-cyan/50 hover:text-ink-2'
       }`}
     >
       {linked ? (
