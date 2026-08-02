@@ -844,11 +844,15 @@ export function useMixer() {
       buffersRef.current.delete(channelId);
       change((current) => ({
         ...current,
-        channels: current.channels.map((channel) =>
-          channel.id === channelId
-            ? { ...channel, source: { kind: 'live' }, offsetSec: 0, inPoint: 0, outPoint: 0 }
-            : channel,
-        ),
+        channels: current.channels.map((channel) => {
+          if (channel.id === channelId) {
+            return { ...channel, source: { kind: 'live' }, offsetSec: 0, inPoint: 0, outPoint: 0 };
+          }
+          if (channel.source.kind === 'live') {
+            return { ...channel, source: { kind: 'empty' }, offsetSec: 0, inPoint: 0, outPoint: 0 };
+          }
+          return channel;
+        }),
       }));
       if (!leaseRef.current) {
         setNotice('This channel is set to the live input — open a device to hear it.');
