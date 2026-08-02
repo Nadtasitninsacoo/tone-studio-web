@@ -3,6 +3,7 @@
 import { AudioWaveform } from 'lucide-react';
 import type { RefObject } from 'react';
 
+import { MonitorHandover } from '@/components/ui/MonitorHandover';
 import { Chip } from '@/components/ui/Panel';
 import { formatChannels, formatSampleRate } from '@/lib/format';
 import type { DevicePermission, InputDevice, RecorderStatus, StreamFormat, MeterSnapshot } from '@/types/recorder';
@@ -176,6 +177,11 @@ export function HeaderBar({
             onRefresh={onRefreshDevices}
             onRequestAccess={onRequestAccess}
           />
+
+          {/* `/` and `/amp` are one side of the handover, so this is the same control as
+              the one on the Rig page — pressing either brings the sound back from the
+              desk. See `MonitorHandover`. */}
+          <MonitorHandover scope="recorder" here="หน้าอัด" there="หน้ามิกเซอร์" />
 
           <div className="hidden md:flex">
             <StatusBadge status={status} />

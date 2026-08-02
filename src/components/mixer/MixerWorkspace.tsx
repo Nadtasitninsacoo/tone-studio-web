@@ -12,6 +12,7 @@ import {
   getServerRigSnapshot,
   setBassSettings,
 } from '@/lib/ampStore';
+import { MonitorHandover } from '@/components/ui/MonitorHandover';
 import { useHudColor } from '@/hooks/useHudColor';
 import { setHudColor as setHudColorStore, type HudColor } from '@/lib/hudColor';
 // Instrument type removed as unused
@@ -221,6 +222,10 @@ export function MixerWorkspace() {
           </div>
 
           <div className="flex items-center gap-2.5">
+            {/* Taking the live sound is a press, never a navigation — the desk stays silent
+                on arrival until someone asks for it. See `MonitorHandover`. */}
+            <MonitorHandover scope="mixer" here="หน้ามิกเซอร์" there="หน้า Rig" />
+
             {/* Color preset switcher */}
             <button
               type="button"

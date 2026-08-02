@@ -165,11 +165,13 @@ export function getServerMonitorScope(): MonitorScope {
 }
 
 /**
- * Hand the live monitor to one page.
+ * Hand the live monitor to one side.
  *
- * Called from the route watcher in `StudioProviders`, which is the only thing that knows
- * which page is visible — and the only place this should ever be set from, so the two
- * engines can never disagree about who is making sound.
+ * Called from `MonitorHandover` — a button — and from nothing else. It used to be written
+ * by a route watcher, so the sound followed whichever page was on screen; that made
+ * opening the mixer to glance at a fader silence the rack you were dialling, which reads
+ * as a broken monitor rather than as a design. Keeping this to a single writer is what
+ * stops the two engines from ever disagreeing about who is making sound.
  */
 export function setMonitorScope(next: MonitorScope): void {
   if (monitorScope === next) return;

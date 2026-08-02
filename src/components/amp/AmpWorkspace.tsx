@@ -6,6 +6,7 @@ import { useMixerStudio, useRecorderStudio } from '@/components/providers/Studio
 import { AmpRack } from '@/components/recorder/AmpRack';
 import { LevelMeter } from '@/components/recorder/LevelMeter';
 import { OutputPicker } from '@/components/recorder/OutputPicker';
+import { MonitorHandover } from '@/components/ui/MonitorHandover';
 import { Chip } from '@/components/ui/Panel';
 import { useAccent } from '@/hooks/useAccent';
 import { usePressAndHold } from '@/hooks/usePressAndHold';
@@ -208,6 +209,10 @@ export function AmpWorkspace() {
             <Headphones aria-hidden className="h-3.5 w-3.5" />
             Monitor
           </button>
+
+          {/* The sound stays here until someone presses the matching button on another
+              page — navigating never moves it. See `MonitorHandover`. */}
+          <MonitorHandover scope="recorder" here="หน้านี้" there="หน้ามิกเซอร์" />
 
           {/* Second row of the same strip: the input's device picker has a counterpart at
               last. `basis-full` rather than a separate panel — it belongs to "what am I

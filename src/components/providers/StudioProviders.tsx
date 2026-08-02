@@ -1,9 +1,8 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { setMonitorScope } from '@/lib/ampStore';
+import type { MonitorScope } from '@/lib/ampStore';
 import { useInputDevices } from '@/hooks/useInputDevices';
 import { useMixer } from '@/hooks/useMixer';
 import { useRecorder } from '@/hooks/useRecorder';
@@ -154,19 +153,8 @@ function MixerProvider({ children }: { children: ReactNode }) {
     isMonitoring,
     toggleMonitoring,
     status: recorderStatus,
+    monitorScope,
   } = recorder;
-
-  /**
-   * Whether the desk was actually making a live sound, rather than merely holding a device.
-   *
-   * A ref-reading callback, so the handover below never takes the desk's state as a
-   * dependency — it only asks at the moment the route changes.
-   */
-  const mixerChannels = mixer.state.channels;
-  const wasMonitoringLive = useCallback(
-    () => mixerChannels.some((channel) => channel.source.kind === 'live' && !channel.muted),
-    [mixerChannels],
-  );
 
   /**
    * Follow the recorder's input until the mixer is given one of its own.
@@ -191,72 +179,60 @@ function MixerProvider({ children }: { children: ReactNode }) {
   }, [armInput, mixerDeviceId, recorderDeviceId, activeDeviceLabel]);
 
   /**
-   * The page on screen owns the live monitor.
+   * Follow the owner of the live monitor. **Do not decide it.**
    *
-   * One instrument, one pair of speakers, one set of racks running at a time. Before this,
-   * the recorder's monitor bus and the mixer's live channels both processed the same input
-   * through their own chains on their own `AudioContext`s: double the convolvers and
-   * worklet processors, one button switching on two chains, and three live channels was
-   * enough to overrun the audio thread — heard as a stutter and then a dropout.
+   * One instrument, one pair of speakers, one set of racks running at a time — that part is
+   * unchanged and non-negotiable. Before it, the recorder's monitor bus and the mixer's live
+   * channels both processed the same input through their own chains on their own
+   * `AudioContext`s: double the convolvers and worklet processors, one button switching on
+   * two chains, and three live channels was enough to overrun the audio thread.
    *
-   * This is the **only** place the decision is made, and it is made from the route, which
-   * is the only thing that knows which page is visible. Both engines then apply it through
-   * their own single gain writer, so nothing here fights anything for an `AudioParam`.
+   * What changed is *who decides*. This used to read the route and hand ownership to
+   * whichever page was on screen, which meant opening the mixer to glance at a fader
+   * silenced the rack you were dialling. A tone is built by ear over minutes; the numbers
+   * were always safe in the store, but the listening was not, and losing it to a click on a
+   * nav item is indistinguishable in the moment from the monitor breaking.
    *
-   * Monitoring only. Clips playing on the mixer keep playing across pages — sound stops in
-   * this app when somebody stops it, not when they navigate.
+   * So ownership is explicit now and lives in `lib/ampStore.ts`, written by
+   * `MonitorHandover` — a button on each page — and by nothing else. This effect only
+   * *applies* what the store says. Navigation changes nothing about the sound.
+   *
+   * Monitoring only, as before. Clips playing on the mixer keep playing across pages: sound
+   * stops in this app when somebody stops it, not when they navigate.
    */
-  const pathname = usePathname();
   const { setMonitorLive } = mixer;
-  const lastRoute = useRef<'recorder' | 'tone' | 'mixer' | null>(null);
+  const lastScope = useRef<MonitorScope | null>(null);
   /**
    * A monitor to open as soon as there is an input to open it for.
    *
-   * The route changes before the device is armed — on a cold load into `/amp` the status is
-   * still `idle` for as long as the permission and `getUserMedia` take. Deciding on the
-   * transition alone therefore decided against a page that was one moment away from having
-   * a signal, and the tone page came up silent. So the transition records the *intent* and
-   * the arming clears it.
+   * Ownership can be taken before the device is armed — on a cold load the status is `idle`
+   * for as long as the permission and `getUserMedia` take. Deciding at the instant of the
+   * press would decide against an engine one moment away from having a signal, so the press
+   * records the *intent* and the arming clears it.
    */
   const pendingMonitor = useRef(false);
   useEffect(() => {
-    const ownedByMixer = pathname?.startsWith('/mixer') ?? false;
-    const onTonePage = pathname?.startsWith('/amp') ?? false;
-    const scope = ownedByMixer ? 'mixer' : 'recorder';
-    setMonitorScope(scope);
-    setMonitorLive(ownedByMixer);
+    setMonitorLive(monitorScope === 'mixer');
 
     /**
-     * A handover has to *hand the sound over*, not drop it.
+     * Taking the sound has to *give you the sound*, not just the right to it.
      *
      * The recorder's monitor path has its own switch, off by default because a microphone
-     * plus speakers is feedback. That was harmless while the mixer's live channel was
-     * audible on every page — and the moment ownership started switching by route, leaving
-     * the mixer meant walking into a page whose output was muted. "The mixer plays, the
-     * tone page is silent" was the exact report, and it is not a bug in either engine:
-     * ownership moved to somewhere that was not making a sound.
+     * plus speakers is feedback. Leaving it alone here would mean pressing "รับเสียงมาที่นี่"
+     * and getting silence, which is the same complaint the route-driven version produced —
+     * "the mixer plays, the rig page is silent" — with a button in front of it.
      *
-     * Two arrivals hand the sound over, and they are tracked by **route group**, not by
-     * scope — `/` and `/amp` are both `recorder`, so a scope comparison sees no transition
-     * between them and that is exactly the walk that was silent:
+     * `previous !== null` is what keeps the feedback rule intact: the first pass is the page
+     * loading, not a handover, so nothing opens a speaker on its own. Only a press does, and
+     * a press is a person deciding the room is safe.
      *
-     * - **the tone page**, unconditionally. Dialling an amp you cannot hear is not a
-     *   feature with a switch, it is guesswork; this page exists to hear the rack. The
-     *   feedback reasoning above still holds for `/`, which is why the recorder page is
-     *   left exactly as it was — you arm there, and you decide there whether the room is
-     *   safe to open a monitor into.
-     * - **back from a desk that was monitoring live**, as before.
-     *
-     * Once only, on the transition. Never fought afterwards: turn Monitor off while you
-     * are on the page and it stays off, because this does not run again until the route
-     * changes.
+     * Once, on the transition, and never fought afterwards: switch Monitor off while you are
+     * here and it stays off, because this does not run again until ownership moves.
      */
-    const previous = lastRoute.current;
-    const route = ownedByMixer ? 'mixer' : onTonePage ? 'tone' : 'recorder';
-    if (previous !== route) {
-      lastRoute.current = route;
-      pendingMonitor.current =
-        route === 'tone' || (previous === 'mixer' && route === 'recorder' && wasMonitoringLive());
+    const previous = lastScope.current;
+    if (previous !== monitorScope) {
+      lastScope.current = monitorScope;
+      pendingMonitor.current = previous !== null && monitorScope === 'recorder';
     }
 
     // An input to hear it on. `arming` is not enough — the graph is not carrying signal yet.
@@ -265,14 +241,7 @@ function MixerProvider({ children }: { children: ReactNode }) {
       pendingMonitor.current = false;
       if (!isMonitoring) toggleMonitoring();
     }
-  }, [
-    pathname,
-    setMonitorLive,
-    isMonitoring,
-    toggleMonitoring,
-    wasMonitoringLive,
-    recorderStatus,
-  ]);
+  }, [monitorScope, setMonitorLive, isMonitoring, toggleMonitoring, recorderStatus]);
 
   return <MixerContext.Provider value={mixer}>{children}</MixerContext.Provider>;
 }

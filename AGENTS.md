@@ -401,22 +401,28 @@ by design.
 - `windowLengthFor` sizing the analysis window from the selected tuning. A guitar
   needs 2048 samples and a 5-string bass 8192; one window big enough for both
   costs 4× on every reading of the common case.
-- **The page on screen owns the live monitor** (`monitorScope` in `lib/ampStore.ts`, set
-  from the route in `StudioProviders`, applied by each engine's single gain writer). Both
-  engines processing the same input through their own racks is double the convolvers and
-  worklets, and three live channels was enough to overrun the audio thread. Gain zero is
-  not enough on the losing side: the recorder's monitor bus is **disconnected** from
-  `destination`, because Web Audio stops computing a node with no path there, not one
-  whose output is silent.
-- The handover watcher keying its transition on the **route group** (`recorder` / `tone` /
-  `mixer`), not on the scope. `/` and `/amp` are both scope `recorder`, so a scope
-  comparison sees no transition between them — and that is precisely the walk that landed
-  on a page owning the sound with its Monitor switch off. It records the intent and opens
-  the monitor once **the input is armed**, because the route changes while the status is
-  still `arming` and deciding at that instant decides against a signal one moment away.
-  Arriving at `/amp` always hands the sound over; `/` deliberately does not, and that
-  asymmetry is the whole feedback argument — you arm on the recorder page and decide there
-  whether the room is safe to open a monitor into.
+- **Exactly one side owns the live monitor** (`monitorScope` in `lib/ampStore.ts`, applied
+  by each engine's single gain writer). Both engines processing the same input through
+  their own racks is double the convolvers and worklets, and three live channels was enough
+  to overrun the audio thread. Gain zero is not enough on the losing side: the recorder's
+  monitor bus is **disconnected** from `destination`, because Web Audio stops computing a
+  node with no path there, not one whose output is silent.
+- **Ownership moves on a press, never on a navigation** — `MonitorHandover`, a button on
+  each page, is the only writer of `monitorScope`, and `StudioProviders` only applies what
+  it says. This replaced a watcher that read the route and gave the sound to whichever page
+  was visible, and the replacement was asked for after using it: opening the mixer to glance
+  at a fader silenced the rack you were dialling. The numbers were never at risk — they live
+  in the shared store — but a tone is built *by ear* over minutes, and losing the listening
+  to a click on a nav item is indistinguishable, in the moment, from the monitor breaking.
+  So navigating is not a request to change the sound.
+  - Taking the sound also **opens the Monitor switch**, once, on the transition, and only
+    when `previous !== null` — the first pass is the page loading, not a handover. That
+    guard is the whole feedback argument: nothing opens a speaker without a person pressing
+    something, on any page. It waits for `status` to leave `arming` before opening, because
+    a press can land while `getUserMedia` is still resolving and deciding then decides
+    against a signal one moment away.
+  - `/` and `/amp` are **one side**. Both render the same control, and pressing either
+    brings the sound back from the desk; there is no handover *between* them to make.
 - **The desk parking its whole `AudioContext`** when it owns neither the live monitor nor a
   transport (`shouldParkContext`, checked). Muting its channels was not enough for the same
   reason gain zero was not enough for the recorder's monitor bus: a silent graph is still a
