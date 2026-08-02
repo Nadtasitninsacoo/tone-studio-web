@@ -223,7 +223,7 @@ export function useMixer() {
    * A ref because `armInput` is defined first and both are `useCallback`s: taking the
    * function as a dependency would rebuild the arm callback on every desk change.
    */
-  const takeLiveInputRef = useRef<(channelId: string) => void>(() => {});
+  const takeLiveInputRef = useRef<(channelId: string, exclusive?: boolean) => void>(() => {});
   /** `logEvent`, for the functions defined above it. Assigned in an effect below. */
   const logEventRef = useRef<(text: string) => void>(() => {});
   /** The live input, shared with the recorder page. */
@@ -906,25 +906,45 @@ export function useMixer() {
    * the only place a channel is ever assigned from.
    */
   const takeLiveInput = useCallback(
-    (channelId: string) => {
+    (channelId: string, exclusive = false) => {
       buffersRef.current.delete(channelId);
+      /**
+       * Additive unless the caller asks otherwise, and the distinction is the whole point.
+       *
+       * Two things call this and they mean opposite things. The Rig page's
+       * "○ CH · no signal" link means **move** the input to the channel carrying that rack —
+       * its own log line has said `moved` since the day it was written. Choosing `live` on a
+       * strip in CHANNEL SOURCES means **this strip, as well**, and silently emptying the
+       * others is then destroying a desk the player set up.
+       *
+       * The exclusivity was added to this shared function to stop six live channels
+       * overrunning the audio thread. That was a real problem, but it is now answered by
+       * things the player controls — the LIGHT mode and the buffer — rather than by a rule
+       * that makes the desk impossible to set up.
+       */
+      const cleared: string[] = [];
       change((current) => ({
         ...current,
         channels: current.channels.map((channel) => {
           if (channel.id === channelId) {
             return { ...channel, source: { kind: 'live' }, offsetSec: 0, inPoint: 0, outPoint: 0 };
           }
-          if (channel.source.kind === 'live') {
+          if (exclusive && channel.source.kind === 'live') {
+            cleared.push(channel.name);
             return { ...channel, source: { kind: 'empty' }, offsetSec: 0, inPoint: 0, outPoint: 0 };
           }
           return channel;
         }),
       }));
+      // Never silently: the desk's event log exists "for when a silence needs explaining",
+      // and a strip that stops carrying signal because you clicked somewhere else is
+      // exactly that.
+      if (cleared.length > 0) logEvent(`live input moved off ${cleared.join(', ')}`);
       if (!leaseRef.current) {
         setNotice('This channel is set to the live input — open a device to hear it.');
       }
     },
-    [change],
+    [change, logEvent],
   );
 
   useEffect(() => {
@@ -1269,7 +1289,9 @@ export function useMixer() {
     (instrument: Instrument) => {
       const target = stateRef.current.channels.find((channel) => channel.insert === instrument);
       if (!target) return;
-      takeLiveInputRef.current(target.id);
+      // `true`: this is the *move*. The link that calls it says a rack has no signal, and
+      // answering it by adding a seventh live channel is not what it offered.
+      takeLiveInputRef.current(target.id, true);
       logEvent(`live input moved to ${target.name} (${instrument})`);
     },
     [logEvent],
