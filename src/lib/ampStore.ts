@@ -35,6 +35,7 @@
  */
 
 import type { AmpSettings } from './ampFx';
+import type { RigQuality } from '@/lib/bypass';
 import type { BassSettings } from './bassFx';
 import type { DrumSettings } from './drumFx';
 import type { VocalSettings } from './vocalFx';
@@ -102,6 +103,19 @@ let level: Record<Instrument, number> = {
 export type MonitorScope = 'recorder' | 'mixer';
 
 let monitorScope: MonitorScope = 'recorder';
+
+/**
+ * How much of every chain is in the path. See `lib/bypass.ts` for what moves.
+ *
+ * Here rather than inside `RigSettings` on purpose. It is not a tone decision — it does not
+ * belong in a preset, it must not travel to `/api/tone`, and `clampRig` has no business
+ * validating it. It describes the machine the racks are running on, and it is the same
+ * answer for all six of them at once.
+ *
+ * `full` is the default because `light` gives up the gate and the limiter, which are real
+ * losses; nobody should discover them without having asked.
+ */
+let rigQuality: RigQuality = 'full';
 
 const listeners = new Set<() => void>();
 
@@ -176,6 +190,21 @@ export function getServerMonitorScope(): MonitorScope {
 export function setMonitorScope(next: MonitorScope): void {
   if (monitorScope === next) return;
   monitorScope = next;
+  emit();
+}
+
+export function getRigQuality(): RigQuality {
+  return rigQuality;
+}
+
+/** Prerendered pages get the full chain, which is what an unconfigured machine should try. */
+export function getServerRigQuality(): RigQuality {
+  return 'full';
+}
+
+export function setRigQuality(next: RigQuality): void {
+  if (rigQuality === next) return;
+  rigQuality = next;
   emit();
 }
 

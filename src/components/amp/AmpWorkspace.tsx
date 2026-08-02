@@ -229,6 +229,8 @@ export function AmpWorkspace() {
               bufferMs={recorder.bufferMs}
               bufferChoices={BUFFER_CHOICES}
               onBufferMs={recorder.changeBufferMs}
+              quality={recorder.rigQuality}
+              onQuality={recorder.changeRigQuality}
               disabled={!isArmed}
             />
           </div>

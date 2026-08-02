@@ -3,6 +3,7 @@
 import { Speaker } from 'lucide-react';
 import { useState } from 'react';
 
+import type { RigQuality } from '@/lib/bypass';
 import type { OutputDevice, OutputDiagnostics } from '@/hooks/useRecorder';
 
 interface OutputPickerProps {
@@ -17,6 +18,9 @@ interface OutputPickerProps {
   bufferMs: number;
   bufferChoices: readonly number[];
   onBufferMs: (ms: number) => void;
+  /** How much of every chain is in the path. See `lib/bypass.ts`. */
+  quality: RigQuality;
+  onQuality: (quality: RigQuality) => void;
   disabled?: boolean;
 }
 
@@ -61,6 +65,8 @@ export function OutputPicker({
   bufferMs,
   bufferChoices,
   onBufferMs,
+  quality,
+  onQuality,
   disabled,
 }: OutputPickerProps) {
   const [result, setResult] = useState<OutputDiagnostics | null>(null);
@@ -122,7 +128,10 @@ export function OutputPicker({
             wants the smallest the machine will give, six need eight times it, and a
             monitor that breaks up is worse than one that is 30 ms late. Changing it
             re-arms the input — a context's buffer is fixed for its life. */}
-        <span className="ml-auto font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-ink-3">
+        {/* Beside the test buttons, not flung right with `ml-auto`. On a narrower window
+            that pushed it against the viewport edge, where it was half cut off and could
+            not be found — a control nobody can see is a control that does not exist. */}
+        <span className="font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-ink-3">
           Buffer
         </span>
         <select
@@ -137,6 +146,29 @@ export function OutputPicker({
             </option>
           ))}
         </select>
+
+        {/* The heaviest thing in the rack is not the tone, it is twelve AudioWorklet
+            processors — a gate and a limiter per rack, each a JavaScript callback every
+            128 samples whether it is doing anything or not. `LIGHT` routes them out of the
+            path on every chain, which is the only lever big enough to make five or six
+            instruments audible at once on a machine that cannot manage it otherwise.
+            Real losses, so it is never the default and the title says what they are. */}
+        <button
+          type="button"
+          onClick={() => onQuality(quality === 'full' ? 'light' : 'full')}
+          title={
+            quality === 'full'
+              ? 'FULL — เต็มพิกัด: gate, limiter และ oversampling ครบทุกแร็ค กดเพื่อสลับเป็น LIGHT'
+              : 'LIGHT — ถอด gate/limiter worklet และ oversampling ออกทุกแร็ค เพื่อเปิดหลายแร็คพร้อมกัน กดเพื่อกลับไป FULL'
+          }
+          className={`flex h-7 shrink-0 items-center rounded-lg border px-2.5 font-mono text-[10px] font-bold tracking-wider uppercase transition-colors duration-150 ${
+            quality === 'full'
+              ? 'border-cyan/50 bg-cyan/12 text-cyan'
+              : 'border-amber/60 bg-amber/12 text-amber'
+          }`}
+        >
+          {quality === 'full' ? 'Full' : 'Light'}
+        </button>
       </div>
 
       {/* Only after a press — see the note above about prerendering. */}

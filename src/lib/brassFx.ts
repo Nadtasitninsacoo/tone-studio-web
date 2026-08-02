@@ -13,6 +13,7 @@
  */
 
 import { disconnectAll, makeParamSetter } from '@/lib/audioGraph';
+import { makeBypass, type RigQuality } from '@/lib/bypass';
 import { roomImpulse } from '@/lib/cabinet';
 
 export interface BrassSettings {
@@ -104,6 +105,8 @@ export interface BrassChain {
   readonly input: AudioNode;
   readonly output: AudioNode;
   update(settings: BrassSettings): void;
+  /** Route the worklet processors out of the path, or back in. See lib/bypass.ts. */
+  setQuality(quality: RigQuality): void;
   onMeter(handler: (source: 'gate' | 'limiter', reductionDb: number) => void): void;
   disconnect(): void;
 }
@@ -244,10 +247,24 @@ export function createBrassChain(ctx: BaseAudioContext, settings: BrassSettings)
 
   update(settings);
 
+  /**
+   * The two worklets, and the only two things `light` takes out. See `lib/bypass.ts`.
+   *
+   * Everything else here is native: convolvers, biquads and waveshapers are C++ inside the
+   * browser, and a neutralised one costs a few multiplies. These two are JavaScript called
+   * every 128 samples whether or not they are doing anything, and there are two per rack.
+   */
+  const gateBypass = makeBypass(trim, gate, comp);
+  const limiterBypass = makeBypass(outputTrim, limiter, output);
+
   return {
     input,
     output,
     update,
+    setQuality(quality: RigQuality) {
+      gateBypass(quality === 'full');
+      limiterBypass(quality === 'full');
+    },
     onMeter(handler) {
       gate.port.onmessage = (event) => {
         if (event.data?.type === 'meter') handler('gate', event.data.reductionDb);

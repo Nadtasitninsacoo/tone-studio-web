@@ -35,9 +35,12 @@ import {
   toggleInstrumentEnabled,
   getMasterVolume,
   getMonitorScope,
+  getRigQuality,
   getServerMasterVolume,
   getServerMonitorScope,
+  getServerRigQuality,
   setMasterVolume,
+  setRigQuality,
 } from '@/lib/ampStore';
 import type { BassSettings } from '@/lib/bassFx';
 import type { DrumSettings } from '@/lib/drumFx';
@@ -471,6 +474,8 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
     getMonitorScope,
     getServerMonitorScope,
   );
+  /** How much of every chain is in the path. See `lib/bypass.ts`. */
+  const rigQuality = useSyncExternalStore(subscribeAmp, getRigQuality, getServerRigQuality);
   /** Gain reduction reported by the two worklets, in dB. Painted from rAF. */
   const gateReductionRef = useRef(0);
   const limiterReductionRef = useRef(0);
@@ -656,48 +661,40 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
         const settings = track?.getSettings() ?? {};
 
         /**
-         * The context runs at the **device's** rate, not the output's.
+         * The rate is **not** asked for. Chromium picks the output device's, and that is
+         * the cheap side to be on.
          *
-         * Left unasked, a context takes its rate from whatever the OS currently calls the
-         * default playback device — which on this machine is a moving target, because the
-         * pedal re-enumerates and Windows re-points the default at endpoints with different
-         * rates. A 48 kHz pedal feeding a 44.1 kHz context was observed here, and it costs
-         * twice:
+         * Pinning it to the input device's rate was tried and reverted the same day, so the
+         * reasoning is worth keeping in full — it looks obviously right and it is not.
          *
-         * - **It crackles.** Chromium has to resample the capture stream in real time
-         *   inside a 3 ms buffer, on top of six rig chains. That is heard as the sound
-         *   breaking up, and it looks exactly like a CPU overrun.
-         * - **It corrupts takes, silently.** The worklet captures at the *context's* rate
-         *   while the WAV header below was written from the *track's* — so a file recorded
-         *   in this state claims 48 kHz for samples rendered at 44.1 and plays 8.8% fast
-         *   and sharp. `swapSource` already refuses a rate change for this exact reason;
-         *   the refusal was simply never applied to the first open.
+         * The motivation was real: the worklet captures at the *context's* rate, and the WAV
+         * header used to be written from the *track's*. A 48 kHz pedal on a 44.1 kHz context
+         * therefore produced a file claiming 48 kHz for samples rendered at 44.1, which plays
+         * 8.8% fast and sharp with nothing to show for it. That bug is fixed — but by reading
+         * `sampleRate` below from the context, which is the only thing that knows. Pinning was
+         * never what fixed it.
          *
-         * Asking can fail — `NotSupportedError` when the hardware will not run at that
-         * rate — so the fallback is the old behaviour rather than a failed arm. `sampleRate`
-         * below is then read from the context, which is the only thing that knows.
+         * What pinning *did* was move the resampling from one input stream to the whole mix
+         * output, every quantum, and put the two ends on rates that do not divide — measured
+         * here as a monitor that broke up at five racks where it had been clean. The input is
+         * one mono-or-stereo stream; the output is everything. Resample the cheap side.
+         *
+         * The trade is a take recorded at the output device's rate rather than the
+         * instrument's, which costs nothing real: the file is correct, self-describing, and
+         * 44.1 kHz is not a worse recording of a guitar than 48.
          */
         const deviceRate = settings.sampleRate;
         // From the ref, not the state: a recovery re-arms without a render, and a context
         // built with last session's buffer is the bug this whole constant exists for.
         const latencyHintSec = bufferMsRef.current / 1000;
-        let ctx: AudioContext;
-        try {
-          ctx = new AudioContext(
-            deviceRate
-              ? { latencyHint: latencyHintSec, sampleRate: deviceRate }
-              : { latencyHint: latencyHintSec },
-          );
-        } catch {
-          ctx = new AudioContext({ latencyHint: latencyHintSec });
-        }
+        const ctx = new AudioContext({ latencyHint: latencyHintSec });
         if (deviceRate && ctx.sampleRate !== deviceRate) {
-          // Not fatal — capture and the header agree either way now — but it is the
-          // difference between a clean monitor path and a resampled one, and it is
-          // invisible from the screen.
-          console.warn(
-            `[output] context runs at ${ctx.sampleRate} Hz while the input is ${deviceRate} Hz — ` +
-              'Chromium will resample, which is heard as crackling.',
+          // Expected, and logged rather than fixed: Chromium resamples the capture stream
+          // into the context, which is the cheaper of the two directions. Worth seeing in a
+          // console dump because it is invisible from the screen.
+          console.info(
+            `[output] context ${ctx.sampleRate} Hz · input ${deviceRate} Hz — Chromium resamples ` +
+              'the input, which is the cheap side. Takes are written at the context rate.',
           );
         }
 
@@ -859,6 +856,10 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
             if (source_ === 'limiter') limiterReductionRef.current = reductionDb;
             else gateReductionRef.current = reductionDb;
           });
+
+          // The mode is applied as the chain is built, not a render later: a recovery
+          // re-arms without one, and a light session must not come back up at full.
+          chain.setQuality(getRigQuality());
 
           rigs[id] = chain;
           rigWet[id] = wet;
@@ -1266,6 +1267,19 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
     // one call per chain and two of them are no-ops.
     for (const id of INSTRUMENTS) engine.rigs[id].update(rig);
   }, [rig]);
+
+  /**
+   * Push the quality mode into all six chains.
+   *
+   * Its own effect rather than folded into the `rig` push below, because it is not a tone
+   * change: it moves nodes in and out of the path, and it must not run on every knob drag.
+   * Six calls, each of which is a no-op when the mode already matches.
+   */
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    for (const id of INSTRUMENTS) engine.rigs[id].setQuality(rigQuality);
+  }, [rigQuality]);
 
   /**
    * Follow the visible rack with the meters.
@@ -1886,6 +1900,9 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
      */
     bufferMs,
     changeBufferMs,
+    /** `full` or `light`. See `lib/bypass.ts` for exactly what `light` removes. */
+    rigQuality,
+    changeRigQuality: setRigQuality,
     clearError: useCallback(() => setError(null), []),
     recordSource,
     changeRecordSource,

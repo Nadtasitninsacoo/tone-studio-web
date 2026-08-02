@@ -56,6 +56,7 @@
  */
 
 import { disconnectAll, makeParamSetter, tubeCurve } from '@/lib/audioGraph';
+import { makeBypass, type RigQuality } from '@/lib/bypass';
 import { cabinetImpulse, roomImpulse, type CabinetId, DEFAULT_CABINET } from '@/lib/cabinet';
 
 /** Module URL for the gate and limiter processors. */
@@ -214,6 +215,8 @@ export interface AmpChain {
   /** Cheap and click-free; safe to call on every pointer move. */
   update(settings: AmpSettings): void;
   /** Gate and limiter meter reports, for a gain-reduction display. */
+  /** Route the worklet processors out of the path, or back in. See lib/bypass.ts. */
+  setQuality(quality: RigQuality): void;
   onMeter(handler: (source: 'gate' | 'limiter', reductionDb: number) => void): void;
   disconnect(): void;
 }
@@ -397,6 +400,17 @@ export function createAmpChain(ctx: BaseAudioContext, settings: AmpSettings): Am
   outputTrim.connect(limiter);
   limiter.connect(output);
 
+  /**
+   * The two worklets, and the only two things `light` takes out. See `lib/bypass.ts`.
+   *
+   * Nothing else in this chain is worth removing: the convolvers, the biquads and the
+   * waveshapers are all C++ inside the browser, and a neutralised one costs a handful of
+   * multiplies. These two are JavaScript called every 128 samples whether they are doing
+   * anything or not, and there are two of them per rack.
+   */
+  const gateBypass = makeBypass(trim, gate, comp);
+  const limiterBypass = makeBypass(outputTrim, limiter, output);
+
   // ---- Parameter application ---------------------------------------------
   let currentCab = '';
   let currentReverbSeconds = -1;
@@ -507,6 +521,17 @@ export function createAmpChain(ctx: BaseAudioContext, settings: AmpSettings): Am
     input,
     output,
     update,
+    setQuality(quality) {
+      gateBypass(quality === 'full');
+      limiterBypass(quality === 'full');
+      /**
+       * 4× costs four times the samples through three stages plus the filtering to get
+       * back down, and it is what keeps a hard-clipped harmonic series from folding back
+       * as aliasing. Audible at high drive on high notes; very nearly nothing when clean.
+       * A settable property, so this needs no rebuild and makes no click.
+       */
+      for (const stage of stages) stage.oversample = quality === 'full' ? '4x' : 'none';
+    },
     onMeter(handler) {
       gate.port.onmessage = (event) => {
         if (event.data?.type === 'meter') handler('gate', event.data.reductionDb);

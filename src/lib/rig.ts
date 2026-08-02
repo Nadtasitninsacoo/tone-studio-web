@@ -13,6 +13,7 @@
  */
 
 import { createAmpChain, DEFAULT_AMP, type AmpSettings } from '@/lib/ampFx';
+import type { RigQuality } from '@/lib/bypass';
 import { createBassChain, DEFAULT_BASS, type BassSettings } from '@/lib/bassFx';
 import { createDrumChain, DEFAULT_DRUMS, type DrumSettings } from '@/lib/drumFx';
 import { createVocalChain, DEFAULT_VOCALS, type VocalSettings } from '@/lib/vocalFx';
@@ -97,6 +98,15 @@ export interface RigChain {
   readonly input: AudioNode;
   readonly output: AudioNode;
   update(rig: RigSettings): void;
+  /**
+   * How much of the chain is in the path. See `lib/bypass.ts`.
+   *
+   * On the same interface as `update` and for the same reason: nothing that drives these
+   * chains should have to branch on which instrument is plugged in. Every chain implements
+   * it, and every chain answers it the same way — the two worklets go, the native nodes
+   * stay.
+   */
+  setQuality(quality: RigQuality): void;
   onMeter(handler: (source: 'gate' | 'limiter', reductionDb: number) => void): void;
   disconnect(): void;
 }
@@ -115,6 +125,7 @@ export function createRigChain(
       input: chain.input,
       output: chain.output,
       update: (next) => chain.update(next.bass),
+      setQuality: chain.setQuality,
       onMeter: chain.onMeter,
       disconnect: chain.disconnect,
     };
@@ -126,6 +137,7 @@ export function createRigChain(
       input: chain.input,
       output: chain.output,
       update: (next) => chain.update(next.drums),
+      setQuality: chain.setQuality,
       onMeter: chain.onMeter,
       disconnect: chain.disconnect,
     };
@@ -137,6 +149,7 @@ export function createRigChain(
       input: chain.input,
       output: chain.output,
       update: (next) => chain.update(next.vocals),
+      setQuality: chain.setQuality,
       onMeter: chain.onMeter,
       disconnect: chain.disconnect,
     };
@@ -148,6 +161,7 @@ export function createRigChain(
       input: chain.input,
       output: chain.output,
       update: (next) => chain.update(next.keys),
+      setQuality: chain.setQuality,
       onMeter: chain.onMeter,
       disconnect: chain.disconnect,
     };
@@ -159,6 +173,7 @@ export function createRigChain(
       input: chain.input,
       output: chain.output,
       update: (next) => chain.update(next.brass),
+      setQuality: chain.setQuality,
       onMeter: chain.onMeter,
       disconnect: chain.disconnect,
     };
@@ -169,6 +184,7 @@ export function createRigChain(
     input: chain.input,
     output: chain.output,
     update: (next) => chain.update(next.guitar),
+    setQuality: chain.setQuality,
     onMeter: chain.onMeter,
     disconnect: chain.disconnect,
   };
