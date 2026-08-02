@@ -13,6 +13,10 @@ interface OutputPickerProps {
   onTest: () => OutputDiagnostics | null;
   /** Plays the same tone on a fresh context that has never touched the mic. */
   onProbe: () => void;
+  /** Monitor buffer in milliseconds, and the choices for it. */
+  bufferMs: number;
+  bufferChoices: readonly number[];
+  onBufferMs: (ms: number) => void;
   disabled?: boolean;
 }
 
@@ -54,6 +58,9 @@ export function OutputPicker({
   onChange,
   onTest,
   onProbe,
+  bufferMs,
+  bufferChoices,
+  onBufferMs,
   disabled,
 }: OutputPickerProps) {
   const [result, setResult] = useState<OutputDiagnostics | null>(null);
@@ -110,6 +117,26 @@ export function OutputPicker({
         >
           2 · Test fresh
         </button>
+
+        {/* The buffer, and it belongs to the player rather than to a constant: one rack
+            wants the smallest the machine will give, six need eight times it, and a
+            monitor that breaks up is worse than one that is 30 ms late. Changing it
+            re-arms the input — a context's buffer is fixed for its life. */}
+        <span className="ml-auto font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-ink-3">
+          Buffer
+        </span>
+        <select
+          value={bufferMs}
+          onChange={(event) => onBufferMs(Number(event.target.value))}
+          title="บัฟเฟอร์มอนิเตอร์ — ยิ่งมากยิ่งรองรับหลายแร็คได้ แต่เสียงจะหน่วงขึ้น (เปลี่ยนแล้วจะ re-arm อินพุตให้เอง)"
+          className="shrink-0 rounded-lg border border-line bg-inset px-2 py-1 font-mono text-[10px] text-ink outline-none focus-visible:border-cyan/60"
+        >
+          {bufferChoices.map((ms) => (
+            <option key={ms} value={ms}>
+              {ms} ms
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Only after a press — see the note above about prerendering. */}

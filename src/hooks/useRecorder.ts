@@ -244,8 +244,22 @@ interface Engine {
  * beats picking a number. The cost is 27 ms of extra monitoring latency, which a player
  * can feel — so this is a floor to tune down from, not a target. It is worth nothing at
  * 3 ms if 3 ms is silent.
+ *
+ * It is the **default**, not the value, because there is no single right one: 30 ms carried
+ * one rack cleanly and broke up under six on the same machine an hour later. The number
+ * depends on how many chains the player has switched on, which is a thing they change while
+ * playing, so it belongs to them — see `changeBufferMs`.
  */
-const MONITOR_LATENCY_HINT = 0.03;
+const DEFAULT_BUFFER_MS = 30;
+
+/**
+ * What the picker offers, in milliseconds.
+ *
+ * Coarse on purpose. The audible difference between 30 and 35 ms is nothing and the
+ * difference in headroom is nothing either; what matters is which order of magnitude you
+ * are in, and a slider would invite fiddling at a resolution that does not exist.
+ */
+export const BUFFER_CHOICES = [10, 30, 60, 120] as const;
 
 /** One choice in the output picker. `deviceId: ''` is the system default. */
 export interface OutputDevice {
@@ -407,6 +421,15 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
    * Windows currently prefers. That is precisely the state this control exists to escape.
    */
   const outputDeviceIdRef = useRef<string>('');
+  /**
+   * The monitor buffer, in milliseconds. See `DEFAULT_BUFFER_MS`.
+   *
+   * A ref beside the state for the same reason as the output pin: a context's buffer is
+   * fixed for its life, so `arm` has to read the current value when it builds a new one —
+   * including on a device recovery, which happens without anyone pressing anything.
+   */
+  const [bufferMs, setBufferMs] = useState<number>(DEFAULT_BUFFER_MS);
+  const bufferMsRef = useRef<number>(DEFAULT_BUFFER_MS);
 
   useEffect(() => {
     recordSourceRef.current = recordSource;
@@ -496,6 +519,17 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
   const salvageRef = useRef<() => void>(() => {});
   /** Re-arm from scratch, for a replacement stream the graph cannot absorb. */
   const rearmRef = useRef<(deviceId: string, label: string) => void>(() => {});
+  /**
+   * `arm` and the device it is on, for callbacks defined before it.
+   *
+   * `changeBufferMs` has to rebuild the context on the *current* device with the *current*
+   * `arm`, and it is declared above both. Refs rather than dependencies for the same reason
+   * the recovery callbacks use them: taking `arm` as a dependency rebuilds every consumer
+   * of this hook on every device change.
+   */
+  const armRef = useRef<(deviceId: string, label: string) => Promise<boolean>>(async () => false);
+  const activeDeviceIdRef = useRef<string | null>(null);
+  const activeDeviceLabelRef = useRef<string>('No input');
 
   useEffect(() => {
     onTakeReadyRef.current = onTakeReady;
@@ -644,15 +678,18 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
          * below is then read from the context, which is the only thing that knows.
          */
         const deviceRate = settings.sampleRate;
+        // From the ref, not the state: a recovery re-arms without a render, and a context
+        // built with last session's buffer is the bug this whole constant exists for.
+        const latencyHintSec = bufferMsRef.current / 1000;
         let ctx: AudioContext;
         try {
           ctx = new AudioContext(
             deviceRate
-              ? { latencyHint: MONITOR_LATENCY_HINT, sampleRate: deviceRate }
-              : { latencyHint: MONITOR_LATENCY_HINT },
+              ? { latencyHint: latencyHintSec, sampleRate: deviceRate }
+              : { latencyHint: latencyHintSec },
           );
         } catch {
-          ctx = new AudioContext({ latencyHint: MONITOR_LATENCY_HINT });
+          ctx = new AudioContext({ latencyHint: latencyHintSec });
         }
         if (deviceRate && ctx.sampleRate !== deviceRate) {
           // Not fatal — capture and the header agree either way now — but it is the
@@ -924,6 +961,31 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
     [gainDb, isMonitoring, teardown],
   );
 
+  /**
+   * Change the monitor buffer, and rebuild the context around it.
+   *
+   * A buffer is fixed for a context's life, so this cannot be applied to the graph that
+   * exists — it has to arm again. That is a real interruption of a couple of hundred
+   * milliseconds, which is why this is a coarse picker and not a slider: it is a decision
+   * made once when you change how many racks you are running, not something to ride.
+   *
+   * Nothing else is lost with the graph. Every rack setting, the levels, the channel
+   * switches and the output pin all live outside it and are read back on the way up.
+   */
+  const changeBufferMs = useCallback(
+    (next: number) => {
+      if (bufferMsRef.current === next) return;
+      bufferMsRef.current = next;
+      setBufferMs(next);
+      // Nothing to rebuild until there is something to rebuild. The next `arm` reads the
+      // ref, so an unarmed change simply applies when the device opens.
+      const deviceId = activeDeviceIdRef.current;
+      if (!deviceId) return;
+      void armRef.current(deviceId, activeDeviceLabelRef.current);
+    },
+    [],
+  );
+
   /** Close the input and return to idle. */
   const disarm = useCallback(() => {
     teardown();
@@ -1074,7 +1136,15 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
     rearmRef.current = (deviceId: string, label: string) => {
       void arm(deviceId, label);
     };
+    armRef.current = arm;
   }, [arm]);
+
+  // The device `changeBufferMs` has to come back up on. Assigned rather than depended on,
+  // so changing inputs does not rebuild every consumer of this hook.
+  useEffect(() => {
+    activeDeviceIdRef.current = activeDeviceId;
+    activeDeviceLabelRef.current = activeDeviceLabel;
+  }, [activeDeviceId, activeDeviceLabel]);
 
   /** Discard the current recording without producing a take. */
   const discard = useCallback(() => {
@@ -1807,6 +1877,15 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
     changeOutputDevice,
     playTestTone,
     playProbeTone,
+    /**
+     * The monitor buffer. Bigger is more headroom for more racks, and more latency.
+     *
+     * Exposed because there is no right answer to set on the player's behalf: one rack
+     * wants the smallest buffer the machine will give, six need eight times it, and which
+     * one they are running changes minute to minute.
+     */
+    bufferMs,
+    changeBufferMs,
     clearError: useCallback(() => setError(null), []),
     recordSource,
     changeRecordSource,

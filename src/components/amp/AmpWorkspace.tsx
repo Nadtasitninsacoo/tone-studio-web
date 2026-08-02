@@ -9,6 +9,7 @@ import { OutputPicker } from '@/components/recorder/OutputPicker';
 import { MonitorHandover } from '@/components/ui/MonitorHandover';
 import { Chip } from '@/components/ui/Panel';
 import { useAccent } from '@/hooks/useAccent';
+import { BUFFER_CHOICES } from '@/hooks/useRecorder';
 import { usePressAndHold } from '@/hooks/usePressAndHold';
 import { MiniSlider } from '@/components/ui/Controls';
 import { getEnabledSnapshot } from '@/lib/ampStore';
@@ -225,6 +226,9 @@ export function AmpWorkspace() {
               onChange={(deviceId) => void recorder.changeOutputDevice(deviceId)}
               onTest={recorder.playTestTone}
               onProbe={recorder.playProbeTone}
+              bufferMs={recorder.bufferMs}
+              bufferChoices={BUFFER_CHOICES}
+              onBufferMs={recorder.changeBufferMs}
               disabled={!isArmed}
             />
           </div>
