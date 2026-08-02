@@ -1374,9 +1374,23 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
      * *before* ramping up and ramp down *before* disconnecting, or the reconnection lands
      * as a step change on a live signal — a click.
      */
+    /**
+     * `enabled` only — **never** `owns`.
+     *
+     * `rigWet` feeds `mixBus`, and `mixBus` feeds two things: the monitor bus *and* the
+     * record path, which is where the input meters and the capture worklet read from when
+     * `recordSource` is `wet`. Folding monitor ownership in here therefore silenced the
+     * meters the moment the desk took the chain — and, far worse, would have written a
+     * silent take. Ownership decides what reaches `destination`; it has no business
+     * reaching the recorder.
+     *
+     * The per-channel saving stays: a channel that is switched off still leaves the graph.
+     * What is gone is the idea that a channel stops existing because another page is the
+     * one making the sound.
+     */
     const detaching: number[] = [];
     for (const id of INSTRUMENTS) {
-      const audible = enabled[id] && owns;
+      const audible = enabled[id];
       if (audible && !engine.rigWetConnected[id]) {
         // Silent at the instant of connection, so the ramp below starts from zero rather
         // than from whatever the parameter was left at when it was detached.
@@ -1404,8 +1418,11 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
       }
     }
 
+    // Same rule: the dry feed exists so a session with every rack off still has something
+    // to hear *and to record*. Cutting it because the desk owns the speakers left the
+    // capture path with no signal at all.
     const anyOn = INSTRUMENTS.some((id) => enabled[id]);
-    engine.ampDry.gain.setTargetAtTime(anyOn || !owns ? 0 : 1, at, 0.02);
+    engine.ampDry.gain.setTargetAtTime(anyOn ? 0 : 1, at, 0.02);
 
     /**
      * Gain zero is not enough: the bus has to leave the graph.
