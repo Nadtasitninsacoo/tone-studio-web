@@ -221,9 +221,14 @@ export function MixerWorkspace() {
     <div className="flex min-h-full flex-col select-none">
       <main className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 px-3 py-3.5 sm:px-5 sm:py-4">
         
-        {/* Header Cockpit Title Bar */}
-        <div className="flex animate-rise-in items-center justify-between rounded-xl border border-line bg-panel py-3 shadow-panel pl-14 pr-4 lg:px-4">
-          <div className="flex items-center gap-3">
+        {/* Header Cockpit Title Bar.
+            `flex-wrap`, and both halves allowed to shrink. This bar carries the back
+            button, the title, the handover control, the buffer picker, the quality switch,
+            the colour cycler and a version chip; with no permission to wrap it simply runs
+            off a phone and the controls on the right become unreachable. The recorder's
+            header needed the same fix for the same reason. */}
+        <div className="flex animate-rise-in flex-wrap items-center justify-between gap-y-2 rounded-xl border border-line bg-panel py-3 shadow-panel pl-14 pr-4 lg:px-4">
+          <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={() => router.push('/')}
@@ -241,7 +246,7 @@ export function MixerWorkspace() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2.5">
             {/* Taking the live sound is a press, never a navigation — the desk stays silent
                 on arrival until someone asks for it. See `MonitorHandover`. */}
             <MonitorHandover scope="mixer" here="หน้ามิกเซอร์" there="หน้า Rig" />
