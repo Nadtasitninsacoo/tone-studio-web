@@ -11,6 +11,7 @@ import {
   getRigSnapshot,
   getServerRigSnapshot,
   setBassSettings,
+  setMonitorScope,
 } from '@/lib/ampStore';
 import { MonitorHandover } from '@/components/ui/MonitorHandover';
 import { useHudColor } from '@/hooks/useHudColor';
@@ -279,6 +280,34 @@ export function MixerWorkspace() {
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_390px] gap-4 items-stretch min-w-0">
           
           {/* LEFT BOX: Mixer Console Desk Strips */}
+          {/* Parked, and nothing on this page said so.
+              When the Rig side owns the monitor the desk's whole `AudioContext` is
+              suspended — that is what stops it running a rig chain per strip on a second
+              render thread while another page is making the sound. But a suspended context
+              computes nothing, so every analyser reads nothing and all eight meters sit
+              dark. That is indistinguishable from a desk with no signal, and it was read
+              as exactly that. The one press that fixes it is named. */}
+          {!mixer.state.monitorLive ? (
+            <div
+              role="status"
+              className="flex animate-rise-in items-center gap-2 rounded-xl border border-amber/45 bg-amber/8 px-4 py-2.5 text-[11px] text-ink-2"
+            >
+              <Zap aria-hidden className="h-3.5 w-3.5 shrink-0 text-amber" />
+              <p className="min-w-0 flex-1">
+                เอนจินของมิกเซอร์<span className="font-semibold text-amber">พักอยู่</span> —
+                เสียงสดอยู่ที่หน้า Rig มิเตอร์ทุกช่องจึงดับหมด ไม่ใช่เพราะไม่มีสัญญาณ
+                แต่เพราะกราฟเสียงหยุดคำนวณเพื่อไม่ให้กินซีพียูซ้อนกับอีกหน้า
+              </p>
+              <button
+                type="button"
+                onClick={() => setMonitorScope('mixer')}
+                className="shrink-0 rounded-lg border border-amber/60 bg-amber/15 px-2.5 py-1 font-mono text-[10px] font-bold tracking-wider uppercase text-amber transition-colors hover:bg-amber/30"
+              >
+                รับเสียงมาที่นี่
+              </button>
+            </div>
+          ) : null}
+
           <div className="flex flex-col rounded-xl border border-line bg-panel p-4 shadow-panel min-w-0">
             <div className="flex items-center justify-between border-b border-line pb-3.5 mb-4 w-full">
               <div className="flex items-center gap-2">
