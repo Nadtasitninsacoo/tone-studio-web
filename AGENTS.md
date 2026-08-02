@@ -558,6 +558,26 @@ Three things that session established, worth keeping:
   post-processed while the captured WAV is dry. The meters read pre-monitor, so they
   tell the truth even when the ears do not.
 
+A later session heard the following for the first time, on the same machine and pedal:
+
+- **The six-rack monitor path**, after the buffer fix. Clean, no dropouts, with the racks
+  switched on and off while playing.
+- **The bridged mode** — both engines sounding at once — reported acceptable. What was
+  *not* isolated is whether the desk was contributing to it: the bridge keeps the Rig side
+  audible regardless, so this confirms the mode does not break anything and does not yet
+  confirm that the desk itself made a sound.
+- The **output picker's two test tones**, which is how the silent monitor was found at all.
+
+Still unheard, and not to be reported otherwise: the desk on its own (see the open bug
+below), its offline render, solo and mute across the two tiers, any strip meter, and
+whether a rack's knobs audibly do what the DSP says — nobody has A/B'd one.
+
+**One bug is open and unexplained.** Switching listening to the desk with the bridge off
+produced silence on both sides: the Rig page went quiet as designed and the desk did not
+come up. The desk's own TEST TONE separates the two cases — audible means its output is
+fine and the fault is the signal into its channels, silent means its context is not
+running — and that measurement has not been taken.
+
 A later session added four more, all from one silent monitor that took a day:
 
 - **A dead output stream is indistinguishable from a healthy one through the API.**
