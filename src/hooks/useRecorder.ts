@@ -481,21 +481,31 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
   /** How much of every chain is in the path. See `lib/bypass.ts`. */
   const rigQuality = useSyncExternalStore(subscribeAmp, getRigQuality, getServerRigQuality);
   /**
-   * The bridge, which also decides whether this engine may sound alongside the desk.
+   * The bridge, which decides whether this engine feeds the speakers or feeds the desk.
    *
-   * Bridged, both sides are audible at once — asked for explicitly, and the trade is real:
-   * two engines is twice the DSP, and any instrument live on both is heard through two
-   * copies of the same processing on two clocks, which comb-filters because the two buffers
-   * can never be in phase. Switching that channel off on one side is the answer, and it is
-   * the player's to make.
+   * Standard gain structure, and it took a wrong turn to get here. The chain is
+   * instrument → rack → console → speakers: one path, with the console at the end holding
+   * the level. The racks on this page are the desk's inserts, so when the desk is running
+   * they are **already in that chain** — leaving this engine's monitor bus open as well put
+   * the same instrument into the room twice, through two copies of the same processing on
+   * two clocks that can never be in phase. Twice the DSP, comb filtering for the trouble,
+   * and a desk fader that could only ever pull down half of what you could hear.
+   *
+   * So bridged hands the room to the desk and closes this bus. Unbridged, there is no desk
+   * in the chain and this is the monitor.
    */
   const rigDeskLink = useSyncExternalStore(
     subscribeAmp,
     getRigDeskLink,
     getServerRigDeskLink,
   );
-  /** Whether this engine may make the live sound: it owns the monitor, or the bridge is on. */
-  const ownsMonitor = monitorScope === 'recorder' || rigDeskLink;
+  /**
+   * Whether this engine is the one feeding the room.
+   *
+   * Never both. Bridged, the desk is the end of the chain and this bus closes; unbridged,
+   * there is no desk in the chain and this is the monitor.
+   */
+  const ownsMonitor = monitorScope === 'recorder' && !rigDeskLink;
   /** Shared with the desk: one machine, one buffer. See `lib/ampStore.ts`. */
   const bufferMs = useSyncExternalStore(
     subscribeAmp,

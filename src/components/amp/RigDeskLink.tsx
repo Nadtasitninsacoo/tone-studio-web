@@ -27,13 +27,19 @@ import {
  * deletion: six faders that move the whole desk at once is the fastest way to rough out a
  * balance before touching a single strip.
  *
- * **It also lets both engines sound at once**, which is the thing it was actually being
- * asked for. Off, listening is exclusive and the handover button moves it; on, the Rig
- * page's monitor and the desk are both live. That is twice the DSP — the cost this whole
- * project spent a day learning — and any instrument live on both sides is heard through two
- * copies of the same processing on two clocks, which comb-filters because two buffers can
- * never be in phase. Both are real, both are the player's to manage by switching a channel
- * off on one side, and neither is a reason to refuse the mode.
+ * **It also decides which end of the chain reaches the room**, and that is standard gain
+ * structure rather than a preference: instrument → rack → console → speakers, one path,
+ * with the console at the end holding the level.
+ *
+ * Bridged, the desk is that console and this page is the stage in front of it — set the
+ * racks for a good level and leave them, then ride the mix on the desk. This engine's own
+ * monitor bus closes, because its racks are already inside the desk and leaving it open put
+ * the same instrument into the room twice: two copies of one processing chain on two clocks
+ * that can never be in phase, twice the DSP, and a desk fader that could only pull down
+ * half of what you could hear. That was tried and it is what this replaced.
+ *
+ * Unbridged, there is no console in the chain, and this page's monitor is the shortest path
+ * from string to speaker — which is what you want while dialling one instrument.
  *
  * **The faders link both ways**, and getting there took a correction. It ran Rig → desk
  * only, on the reasoning that a rack can sit on several strips so "which fader sets it"
@@ -53,8 +59,8 @@ export function RigDeskLink() {
       onClick={() => setRigDeskLink(!linked)}
       title={
         linked
-          ? 'บริดจ์เปิด — ทั้งสองหน้าดังพร้อมกัน และระดับ/mute เชื่อมกันสองทาง เลื่อนที่ไหนก็ขยับทั้งคู่ · ระวังเสียงซ้อนถ้าช่องเดียวกันสดทั้งสองฝั่ง กดเพื่อปิด'
-          : 'บริดจ์ปิด — desk พัก เสียงออกทางหน้า Rig อย่างเดียว และระดับที่นี่ไม่แตะบาลานซ์บนมิกเซอร์ กดเพื่อเปิด'
+          ? 'บริดจ์เปิด — เสียงออกทางมิกเซอร์ แร็คที่นี่เป็นต้นทางป้อนเข้าไป (เร่งให้ได้เกนที่ดี) ส่วนระดับในมิกซ์คุมที่ fader ของ desk · ระดับกับ mute เชื่อมกันสองทาง กดเพื่อปิด'
+          : 'บริดจ์ปิด — desk พัก เสียงออกทางหน้า Rig โดยตรง latency ต่ำสุด สำหรับปั้นโทนทีละเครื่อง กดเพื่อส่งเข้ามิกเซอร์'
       }
       aria-pressed={linked}
       /*
