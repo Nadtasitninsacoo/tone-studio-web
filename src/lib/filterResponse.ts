@@ -53,11 +53,22 @@ export interface Section {
  * same reason. Left off, this compiles everywhere except where it is used.
  */
 export function logFrequencies(fMin: number, fMax: number, count: number): Float32Array<ArrayBuffer> {
-  const out = new Float32Array(new ArrayBuffer(count * 4));
+  /**
+   * Floored, and that is not defensive tidiness.
+   *
+   * Callers size this from a canvas, and `getBoundingClientRect().width` is fractional —
+   * 396.5 on the display this was written on. `new Float32Array(n)` would have quietly
+   * truncated; sizing the buffer explicitly does not, and `new ArrayBuffer(396.5 * 4)` is
+   * 1586 bytes, which is not a multiple of 4, which is a `RangeError` at the first paint.
+   *
+   * Two, at minimum: the interpolation below divides by `n - 1`.
+   */
+  const n = Math.max(2, Math.floor(count));
+  const out = new Float32Array(new ArrayBuffer(n * 4));
   const logMin = Math.log10(fMin);
   const logMax = Math.log10(fMax);
-  for (let i = 0; i < count; i += 1) {
-    out[i] = 10 ** (logMin + ((logMax - logMin) * i) / (count - 1));
+  for (let i = 0; i < n; i += 1) {
+    out[i] = 10 ** (logMin + ((logMax - logMin) * i) / (n - 1));
   }
   return out;
 }

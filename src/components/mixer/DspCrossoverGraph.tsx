@@ -128,7 +128,7 @@ export function DspCrossoverGraph({
         width < 2
           ? null
           : (() => {
-              const freqs = logFrequencies(F_MIN, F_MAX, width);
+              const freqs = logFrequencies(F_MIN, F_MAX, Math.floor(width));
               return {
                 low: measureCascade(crossoverSections(crossoverHz, 'low'), freqs, sampleRate),
                 high: measureCascade(crossoverSections(crossoverHz, 'high'), freqs, sampleRate),
