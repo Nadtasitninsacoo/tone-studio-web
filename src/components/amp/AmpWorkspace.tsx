@@ -6,7 +6,6 @@ import { useMixerStudio, useRecorderStudio } from '@/components/providers/Studio
 import { AmpRack } from '@/components/recorder/AmpRack';
 import { LevelMeter } from '@/components/recorder/LevelMeter';
 import { OutputPicker } from '@/components/recorder/OutputPicker';
-import { MonitorHandover } from '@/components/ui/MonitorHandover';
 import { Chip } from '@/components/ui/Panel';
 import { useAccent } from '@/hooks/useAccent';
 import { BUFFER_CHOICES } from '@/hooks/useRecorder';
@@ -220,10 +219,6 @@ export function AmpWorkspace() {
             <Headphones aria-hidden className="h-3.5 w-3.5" />
             Monitor
           </button>
-
-          {/* The sound stays here until someone presses the matching button on another
-              page — navigating never moves it. See `MonitorHandover`. */}
-          <MonitorHandover scope="recorder" here="หน้านี้" there="หน้ามิกเซอร์" />
 
           {/* All six racks, one press. Not the same as the rack's own SAVE CURRENT, which
               keeps a named guitar preset — this keeps the desk as it stands. */}

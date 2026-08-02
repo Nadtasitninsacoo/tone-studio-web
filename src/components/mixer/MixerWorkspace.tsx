@@ -11,13 +11,11 @@ import {
   getRigSnapshot,
   getServerRigSnapshot,
   setBassSettings,
-  setMonitorScope,
-  getMonitorScope,
-  getServerMonitorScope,
+  setRigDeskLink,
   getRigDeskLink,
   getServerRigDeskLink,
 } from '@/lib/ampStore';
-import { MonitorHandover } from '@/components/ui/MonitorHandover';
+import { RigDeskLink } from '@/components/amp/RigDeskLink';
 import { useHudColor } from '@/hooks/useHudColor';
 import { setHudColor as setHudColorStore, type HudColor } from '@/lib/hudColor';
 // Instrument type removed as unused
@@ -104,9 +102,7 @@ export function MixerWorkspace() {
    * Read from the store rather than from the desk's own `monitorLive` copy, because the two
    * were disagreeing and the page was reporting the wrong one.
    */
-  const monitorScope = useSyncExternalStore(subscribeAmp, getMonitorScope, getServerMonitorScope);
-  const rigDeskLink = useSyncExternalStore(subscribeAmp, getRigDeskLink, getServerRigDeskLink);
-  const deskOwnsSound = monitorScope === 'mixer' || rigDeskLink;
+  const deskOwnsSound = useSyncExternalStore(subscribeAmp, getRigDeskLink, getServerRigDeskLink);
 
   // Selected tab in the right panel: 'mixer' | 'dsp'
   const [activeTab, setActiveTab] = useState<'mixer' | 'dsp'>('dsp');
@@ -261,9 +257,10 @@ export function MixerWorkspace() {
           </div>
 
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-2.5">
-            {/* Taking the live sound is a press, never a navigation — the desk stays silent
-                on arrival until someone asks for it. See `MonitorHandover`. */}
-            <MonitorHandover scope="mixer" here="หน้ามิกเซอร์" there="หน้า Rig" />
+            {/* The one control that decides whether this desk is audible. The same switch
+                as the Rig page's, on the store, so either page can reach it — a desk you
+                cannot switch on from the desk is not a switch. */}
+            <RigDeskLink />
 
             {/* The same two machine settings as the Rig page, not a second pair. The desk
                 builds the same rig chains and pays the same cost, and a player who found
@@ -343,10 +340,10 @@ export function MixerWorkspace() {
             </p>
             <button
               type="button"
-              onClick={() => setMonitorScope('mixer')}
+              onClick={() => setRigDeskLink(true)}
               className="shrink-0 rounded-lg border border-amber/60 bg-amber/15 px-2.5 py-1 font-mono text-[10px] font-bold tracking-wider uppercase text-amber transition-colors hover:bg-amber/30"
             >
-              รับเสียงมาที่นี่
+              เปิดบริดจ์
             </button>
           </div>
         ) : null}
