@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 
 import { useSidebar } from '@/hooks/useSidebar';
 import { InstallApp } from './InstallApp';
+import { StudioStatus } from './StudioStatus';
 import { ThemeToggle } from './ThemeToggle';
 
 interface NavItem {
@@ -153,6 +154,13 @@ export function Sidebar() {
             );
           })}
         </nav>
+
+        {/* What the engine is doing, on every page. Its own component so the sidebar
+            itself still reads no context and does not re-render with the transport —
+            see `StudioStatus`. */}
+        <div className="px-2.5 pb-2">
+          <StudioStatus isCollapsed={isCollapsed} />
+        </div>
 
         {/* Footer: what is running, theme, collapse */}
         <div className="flex flex-col gap-2 border-t border-line p-2.5 lg:pb-16">
