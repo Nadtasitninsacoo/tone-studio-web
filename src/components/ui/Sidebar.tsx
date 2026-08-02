@@ -28,7 +28,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { href: '/', label: 'Recorder', hint: 'Capture takes', Icon: Mic },
-  { href: '/amp', label: 'Tone', hint: 'Amp, cabinet & AI', Icon: Zap },
+  { href: '/amp', label: 'Rig', hint: 'Racks, cabinet & AI', Icon: Zap },
   { href: '/mixer', label: 'Mixer', hint: 'Audio & DSP', Icon: Sliders },
 ];
 
@@ -96,9 +96,9 @@ export function Sidebar() {
           {!isCollapsed ? (
             <div className="min-w-0 flex-1 animate-fade-in">
               <p className="truncate text-[12px] font-bold tracking-[0.18em] uppercase text-ink">
-                Guitar
+                Tone Studio
               </p>
-              <p className="truncate font-mono text-[10px] text-ink-3">Recorder Studio</p>
+              <p className="truncate font-mono text-[10px] text-ink-3">Multitrack rig</p>
             </div>
           ) : null}
 

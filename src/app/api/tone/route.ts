@@ -405,7 +405,7 @@ function readInstrument(value: unknown): Instrument {
 
 function guitarPrompt(): string {
   return [
-    'You are the tone engineer inside a browser guitar recorder. The guitar arrives',
+    'You are the tone engineer inside a browser multitrack studio. The guitar arrives',
     'as a dry DI over USB, so this amp — cascaded valve stages, a convolution',
     'cabinet, a look-ahead limiter — is the entire sound. There is no real amp in',
     'the room and no cabinet after you.',

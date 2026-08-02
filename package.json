@@ -1,5 +1,5 @@
 {
-  "name": "guitar-recorder-web",
+  "name": "tone-studio-web",
   "version": "0.1.0",
   "private": true,
   "description": "Browser recorder and video editor for the M-VAVE Tank-G, over USB-C.",

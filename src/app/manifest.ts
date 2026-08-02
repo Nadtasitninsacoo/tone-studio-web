@@ -16,7 +16,7 @@ import type { MetadataRoute } from 'next';
  *
  * - **`display: 'standalone'`** is the install. Without it the browser has nothing to
  *   install *to* — the app would open in a tab like any other page.
- * - **`start_url: '/'`** is the recorder, not the tone page. An installed app opens
+ * - **`start_url: '/'`** is the recorder, not the rig page. An installed app opens
  *   where a session starts: plug in, arm an input, tune.
  * - **A 192 and a 512 icon are both required** by Chrome's install criteria, and the
  *   `maskable` one is separate on purpose. Android crops an icon to whatever shape
@@ -37,12 +37,12 @@ import type { MetadataRoute } from 'next';
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Guitar Recorder — Studio',
+    name: 'Tone Studio',
     // Under about 12 characters, or a launcher truncates it. This is the label under
-    // the icon, so it has to survive being read at a glance.
-    short_name: 'Guitar Rec',
+    // the icon, so it has to survive being read at a glance. 'Tone Studio' is 11.
+    short_name: 'Tone Studio',
     description:
-      'Lossless multi-take recorder, tuner, amp/bass/drum racks and a video editor for a USB audio interface.',
+      'Lossless multi-take recorder, tuner, six instrument rigs and a mixing desk for a USB audio interface.',
     start_url: '/',
     scope: '/',
     display: 'standalone',
@@ -63,7 +63,7 @@ export default function manifest(): MetadataRoute.Manifest {
     // Long-press the installed icon to land on a page directly. The three routes the
     // app has, minus the one `start_url` already covers.
     shortcuts: [
-      { name: 'Tone', short_name: 'Tone', url: '/amp', description: 'Amp, bass and drum racks' },
+      { name: 'Rig', short_name: 'Rig', url: '/amp', description: 'Six instrument racks' },
       { name: 'Mixer', short_name: 'Mixer', url: '/mixer', description: 'Audio & DSP Processor' },
     ],
   };

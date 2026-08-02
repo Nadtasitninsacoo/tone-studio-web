@@ -28,10 +28,10 @@ const azeretMono = Azeret_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Guitar Recorder — Studio",
+  title: "Tone Studio",
   description:
-    "Browser-based multi-take guitar recorder for USB audio interfaces and multi-effects pedals.",
-  applicationName: "Guitar Rec",
+    "Browser multitrack studio for a USB audio interface: lossless capture, a tuner, six instrument rigs and a mixing desk.",
+  applicationName: "Tone Studio",
   /*
    * iOS installs from the Share sheet and reads none of the manifest. These three are
    * the whole of what it does read: without `capable` an added shortcut opens in a
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
    */
   appleWebApp: {
     capable: true,
-    title: "Guitar Rec",
+    title: "Tone Studio",
     statusBarStyle: "black-translucent",
   },
   icons: {

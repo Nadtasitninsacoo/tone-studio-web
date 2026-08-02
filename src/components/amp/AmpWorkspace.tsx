@@ -299,7 +299,7 @@ export function AmpWorkspace() {
 
       <footer className="border-t border-line px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
         <p className="mx-auto max-w-[1600px] text-center font-mono text-[9px] tracking-[0.16em] uppercase text-ink-3 sm:text-left sm:text-[10px] sm:tracking-[0.18em]">
-          Tone · three racks live at once · shared with the recorder · takes stay dry
+          Rig · six racks live at once · shared with the recorder · takes stay dry
         </p>
       </footer>
     </div>

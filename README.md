@@ -1,8 +1,13 @@
-# Guitar Recorder — web
+# Tone Studio — web
 
-Browser-based recording and video editing for an **M-VAVE Tank-G** multi-effects
-pedal connected over **USB-C**. Takes are captured losslessly in the browser, then
-laid over video and exported.
+Browser-based multitrack recording for an **M-VAVE Tank-G** multi-effects pedal
+connected over **USB-C**. Takes are captured losslessly in the browser, played
+through six instrument rigs and balanced on a mixing desk.
+
+Three routes: `/` is the recorder (transport, tuner, takes), `/amp` is the **Rig**
+page (six racks, cabinet, tone assistant) and `/mixer` is the desk. The path `/amp`
+keeps its older name on purpose — it is in the manifest shortcuts and in anything
+bookmarked, and renaming it would break both to fix a word nobody sees.
 
 Next.js 16.2.12 (App Router) · React 19.2.4 · Tailwind **v4** · lucide-react 1.27 ·
 `@breezystack/lamejs` 1.2 (MP3 export only, loaded on demand)

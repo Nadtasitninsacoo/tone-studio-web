@@ -1,5 +1,5 @@
 /**
- * Shared domain types for the Guitar Recorder dashboard.
+ * Shared domain types for the Tone Studio dashboard.
  * Kept framework-agnostic so the NestJS backend can reuse the shapes later.
  */
 

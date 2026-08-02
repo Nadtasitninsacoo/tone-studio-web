@@ -88,7 +88,7 @@ export function HeaderBar({
 
           <div className="min-w-0">
             <h1 className="truncate text-[13px] font-bold tracking-[0.18em] uppercase text-ink sm:text-sm sm:tracking-[0.2em]">
-              Guitar Recorder
+              Tone Studio
             </h1>
             <p className="truncate font-mono text-[10px] text-ink-3 sm:text-[11px]">
               {projectName}

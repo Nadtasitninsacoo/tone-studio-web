@@ -4,11 +4,31 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-# Guitar Recorder web — rules for agents
+# Tone Studio web — rules for agents
 
 Read [README.md](README.md) for the architecture and the design rules; both
 record decisions that were expensive to arrive at. This file is the short list of
 things that break silently.
+
+## "Tone" means the app now, not the page
+
+The project was `guitar-recorder-web` until it grew five more instruments; it is
+**Tone Studio** (`tone-studio-web`). One consequence is worth knowing before reading
+anything else here, because the vocabulary is deliberately inconsistent:
+
+| you will read | it means |
+|---|---|
+| **Tone Studio** | the whole app |
+| the **Rig** page | what the nav calls `/amp` — six racks, cabinet, assistant |
+| "the tone page", `route === 'tone'`, `monitorScope` | the same page, older name, **still correct in code** |
+| `/amp`, `ampStore`, `AmpRack`, `AmpWorkspace` | also that page, older still |
+
+Three names for one route is not drift to tidy up. The **path** is in the manifest's
+shortcuts and in anything anyone has bookmarked or installed; the **identifiers** are
+load-bearing across `StudioProviders`, `lib/ampStore.ts` and both engines, and the
+route group `'tone'` in particular is what the handover watcher keys on — see the rule
+about `/` and `/amp` both being scope `recorder`. Renaming any of it to match the label
+would break working things to fix a word nobody sees. Only the **label** moved.
 
 ## This app stands alone
 

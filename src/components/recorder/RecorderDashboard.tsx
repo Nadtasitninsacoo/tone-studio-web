@@ -230,7 +230,7 @@ export function RecorderDashboard({ projectName }: RecorderDashboardProps) {
       {/* Safe-area padding keeps the footer clear of the iOS home indicator */}
       <footer className="border-t border-line px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
         <p className="mx-auto max-w-[1600px] text-center font-mono text-[9px] tracking-[0.16em] uppercase text-ink-3 sm:text-left sm:text-[10px] sm:tracking-[0.18em]">
-          Guitar Recorder · 16-bit PCM WAV · Takes are held in this session only
+          Tone Studio · 16-bit PCM WAV · Takes are held in this session only
         </p>
       </footer>
     </div>

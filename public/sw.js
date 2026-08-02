@@ -42,7 +42,7 @@
  * `activate` deletes every cache that is not this one.
  */
 const VERSION = 'gr-v1';
-const CACHE = `guitar-recorder-${VERSION}`;
+const CACHE = `tone-studio-${VERSION}`;
 
 self.addEventListener('install', () => {
   // Nothing to precache, so take over immediately rather than waiting for every tab
