@@ -41,6 +41,34 @@ const HUD_COLORS = {
 
 type HudColorType = keyof typeof HUD_COLORS;
 
+/** Unlit segment fill. Matches the class the segments are rendered with. */
+const SEGMENT_OFF = '#151722';
+
+/** Green up to -6ish, amber into the last third, red for the top two. */
+function segmentColour(index: number): string {
+  if (index >= 12) return '#e01843';
+  if (index >= 8) return '#f5b544';
+  return '#2af650';
+}
+
+/**
+ * Light one meter segment by **style**, never by rewriting its class.
+ *
+ * The painter used to assign `el.className` wholesale, with the desktop size baked into
+ * every branch: `'h-1.5 w-3 rounded-xs bg-…'`. The segments are rendered responsive —
+ * `w-2 sm:w-3` — so the first frame a segment lit, it jumped from 8px to 12px and stayed
+ * there. On a phone that widened the master meter past the panel and off the screen, and
+ * only the *lit* part overflowed, which is a strange enough symptom to lose time on.
+ *
+ * Touching only the two properties that actually change also stops a full class-string
+ * rewrite on 28 elements every frame.
+ */
+function paintSegment(el: HTMLDivElement | undefined, colour: string | null): void {
+  if (!el) return;
+  el.style.backgroundColor = colour ?? SEGMENT_OFF;
+  el.style.boxShadow = colour ? `0 0 4px ${colour}` : 'none';
+}
+
 export function MixerWorkspace() {
   const router = useRouter();
   // recorder unused
@@ -140,13 +168,7 @@ export function MixerWorkspace() {
         const el = segments[s];
         if (!el) continue;
         const isLit = peak >= s / 13 && peak > 0.01;
-        if (isLit) {
-          if (s >= 12) el.className = 'h-1.5 w-3 rounded-xs bg-rec shadow-[0_0_4px_#e01843]';
-          else if (s >= 8) el.className = 'h-1.5 w-3 rounded-xs bg-amber shadow-[0_0_4px_#f5b544]';
-          else el.className = 'h-1.5 w-3 rounded-xs bg-green shadow-[0_0_4px_#2af650]';
-        } else {
-          el.className = 'h-1.5 w-3 rounded-xs bg-[#151722]';
-        }
+        paintSegment(el, isLit ? segmentColour(s) : null);
       }
     }
   }, mixer.isLive);
@@ -156,10 +178,7 @@ export function MixerWorkspace() {
     if (!mixer.isLive) {
       for (const segments of [masterSegmentsRef.current[0], masterSegmentsRef.current[1]]) {
         if (!segments) continue;
-        for (let s = 0; s < 14; s += 1) {
-          const el = segments[s];
-          if (el) el.className = 'h-1.5 w-3 rounded-xs bg-[#151722]';
-        }
+        for (const el of segments) paintSegment(el, null);
       }
     }
   }, [mixer.isLive]);
@@ -619,13 +638,13 @@ export function MixerWorkspace() {
             </div>
 
             {/* FAR RIGHT MASTER SECTION PANEL */}
-            <div className="flex flex-row sm:flex-col items-center justify-between sm:justify-start gap-4 sm:gap-0 sm:pl-4 select-none w-full sm:w-16 pt-4 sm:pt-0 border-t sm:border-t-0 border-line/45">
+            <div className="flex min-w-0 flex-row flex-wrap sm:flex-col sm:flex-nowrap items-center justify-between sm:justify-start gap-4 sm:gap-0 sm:pl-4 select-none w-full sm:w-16 pt-4 sm:pt-0 border-t sm:border-t-0 border-line/45">
               <span className="font-mono text-[6px] tracking-widest text-ink-3 uppercase leading-none select-none text-left sm:text-center block mb-0 sm:mb-3">
                 MASTER<br className="hidden sm:block"/> SECTION
               </span>
 
               {/* Master LED VU Meters L/R side-by-side */}
-              <div className="flex gap-1.5 bg-black/60 p-1.5 rounded-lg border border-line/45 mb-0 sm:mb-4 select-none h-14 sm:h-36">
+              <div className="flex min-w-0 max-w-full gap-1.5 overflow-hidden bg-black/60 p-1.5 rounded-lg border border-line/45 mb-0 sm:mb-4 select-none h-14 sm:h-36">
                 
                 {/* Left Master Meter */}
                 <div className="flex flex-row sm:flex-col gap-0.5 sm:gap-0.75 h-full items-center justify-center">
