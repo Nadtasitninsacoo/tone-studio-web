@@ -84,7 +84,19 @@ export function RigMixer({
         </p>
       </div>
 
-      <div className="grid gap-1 sm:grid-cols-3 lg:grid-cols-6">
+      {/* Strips are a **fixed width**, packed and centred — not a grid stretched
+          across the bar.
+
+          The first upright pass kept the six-column grid, which on a wide screen
+          gave every channel a ~300px cell holding a 20px fader: the control hugged
+          the left edge, the readout sat at the far right, and a quarter of a metre
+          of nothing lay between them. Stretching is right for a horizontal fader,
+          whose length *is* the control, and wrong for a vertical one, whose length
+          is its height.
+
+          A console strip has a width, and it is narrow. `flex-wrap` means eight or
+          sixteen of them will simply flow onto another line when they arrive. */}
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {INSTRUMENTS.map((id) => (
           <MixerChannel
             key={id}
@@ -158,7 +170,7 @@ function MixerChannel({
 
   return (
     <div
-      className="flex items-center gap-1.5 rounded-lg border px-1.5 py-1 transition-colors duration-200"
+      className="flex flex-col gap-1 rounded-lg border px-2 py-1.5 transition-colors duration-200"
       style={
         isShown
           ? {
@@ -168,38 +180,21 @@ function MixerChannel({
           : { borderColor: 'transparent' }
       }
     >
-      {/* The channel switch. Separate from the row below it on purpose: this
-          is what you hear, that is what you see. */}
-      <button
-        type="button"
-        onClick={() => onToggle(id)}
-        disabled={!isArmed}
-        aria-pressed={isOn}
-        title={isOn ? `ปิดช่อง${info.label}` : `เปิดช่อง${info.label}`}
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors duration-200 disabled:pointer-events-none disabled:opacity-40"
-        style={
-          isOn
-            ? {
-                borderColor: accent,
-                color: accent,
-                backgroundColor: `color-mix(in srgb, ${accent} 16%, transparent)`,
-              }
-            : undefined
-        }
-      >
-        <Power aria-hidden className="h-3.5 w-3.5" />
-      </button>
-
-      <div className="min-w-0 flex-1">
+      {/* ---- Row 1: what it is, and whether you hear it ------------------------
+          Fixed height, like row two. The six strips carry different amounts of
+          text — "V-TONE" against "สัญญาณสด · BREAK ว่าง" — and letting each size
+          itself put six faders at six different heights, which is what made the
+          row read as accidental rather than built. */}
+      <div className="flex h-4 items-center gap-1.5">
         <button
           type="button"
           onClick={() => onSelect(id)}
           title={`แสดงแร็ค${info.label} — ${info.hint}`}
-          className="flex w-full items-center gap-1 text-left"
+          className="flex min-w-0 flex-1 items-center gap-1 text-left"
         >
           <Icon aria-hidden className="h-3 w-3 shrink-0 text-ink-3" />
           <span
-            className={`truncate text-[11px] font-semibold leading-tight ${
+            className={`truncate text-[11px] leading-none font-semibold ${
               isOn ? 'text-ink' : 'text-ink-3'
             }`}
           >
@@ -207,96 +202,140 @@ function MixerChannel({
           </span>
         </button>
 
-        {/* Where this rack lands. A rack acting on nothing is the reason these knobs
-            have felt dead, so it says which strip it is on — and offers to put the
-            input there when the answer is "none".
+        {/* Value and switch together, right-aligned on every strip, so the eye
+            finds them in the same place on all six rather than wherever that
+            channel's name happened to end.
 
-            The live feed is checked *first*, and it outranks the desk: while this page is
-            the one carrying the input, the knobs act on the signal whether or not any
-            mixer channel holds a source, so the desk's emptiness is not the answer to the
-            question this line asks. */}
-        {/* Two separate facts, and merging them was a lie.
-              - Is this rack being fed *right now*? True while this page owns the monitor.
-              - Does the desk strip carrying it have a source of its own?
-            The first version reported only the second and printed "ไม่มีสัญญาณ" beside
-            meters reading −1.6 dBFS. The fix overshot: it reported only the first, so all
-            six rows claimed a live desk channel while the desk showed seven NO SOURCE. Both
-            get said now, and the strip that is still empty keeps its one-click offer. */}
+            The switch stays mounted and merely disabled when the channel is off,
+            for the same reason the fader does: a control that disappears takes its
+            value's visibility with it, and the value is what you set before
+            switching the channel off. */}
+        <span
+          className={`shrink-0 font-mono text-[10px] tabular-nums select-none transition-colors duration-150 ${
+            isOn ? 'text-ink-2' : 'text-ink-3/40'
+          }`}
+        >
+          {Math.round(level * 100)}%
+        </span>
+        <button
+          type="button"
+          onClick={() => onToggle(id)}
+          disabled={!isArmed}
+          aria-pressed={isOn}
+          title={isOn ? `ปิดช่อง${info.label}` : `เปิดช่อง${info.label}`}
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-all duration-200 active:scale-90 disabled:pointer-events-none disabled:opacity-40"
+          style={
+            isOn
+              ? {
+                  borderColor: accent,
+                  color: accent,
+                  backgroundColor: `color-mix(in srgb, ${accent} 16%, transparent)`,
+                }
+              : undefined
+          }
+        >
+          <Power aria-hidden className="h-3 w-3" />
+        </button>
+      </div>
+
+      {/* ---- Row 2: where this rack lands -------------------------------------
+          A rack acting on nothing is the reason these knobs have felt dead, so
+          this says which strip it is on — and offers to put the input there when
+          the answer is "none".
+
+          Two separate facts, and merging them was a lie:
+            - Is this rack being fed *right now*? True while this page owns the
+              monitor, whatever the desk holds.
+            - Does the desk strip carrying it have a source of its own?
+          The first version reported only the second and printed "ไม่มีสัญญาณ"
+          beside meters reading −1.6 dBFS. The fix overshot and reported only the
+          first, so all six rows claimed a live desk channel while the desk showed
+          seven NO SOURCE. Both get said, and the strip that is still empty keeps
+          its one-click offer.
+
+          One line, clipped rather than wrapped. The wrapping version pushed the
+          fader down by a line on whichever channels happened to have the longest
+          carrier name, so the six faders no longer lined up. */}
+      <p className="flex h-3 items-center gap-1 overflow-hidden font-mono text-[8px] leading-none tracking-[0.08em] whitespace-nowrap uppercase text-ink-3">
         {playing.length > 0 ? (
-          <p className="truncate font-mono text-[8px] leading-tight tracking-[0.1em] uppercase text-ink-3">
-            <span className="text-cyan">● {carrier?.name}</span>
-          </p>
+          <span className="truncate text-cyan" title={carrier?.name}>
+            ● {carrier?.name}
+          </span>
         ) : hasLiveFeed ? (
-          <p className="truncate font-mono text-[8px] leading-tight tracking-[0.1em] uppercase text-ink-3">
-            <span className="text-cyan">● สัญญาณสด</span>
+          <>
+            <span className="shrink-0 text-cyan">● สัญญาณสด</span>
             {carrier ? (
               <>
-                {' · '}
+                <span aria-hidden className="shrink-0 text-ink-3/50">
+                  ·
+                </span>
                 <button
                   type="button"
                   onClick={() => onPutLive?.(id)}
                   disabled={!isArmed || !onPutLive}
                   title={`${carrier.name} ยังไม่มีสัญญาณบนมิกเซอร์ — กดเพื่อใส่ให้`}
-                  className="text-amber underline decoration-dotted disabled:no-underline disabled:opacity-60"
+                  className="truncate text-amber underline decoration-dotted underline-offset-2 disabled:no-underline disabled:opacity-60"
                 >
                   {carrier.name} ว่าง
                 </button>
               </>
             ) : null}
-          </p>
+          </>
         ) : carrier ? (
-          <p className="truncate font-mono text-[8px] leading-tight tracking-[0.1em] uppercase text-ink-3">
-            <button
-              type="button"
-              onClick={() => onPutLive?.(id)}
-              disabled={!isArmed || !onPutLive}
-              title={`${carrier.name} carries this rack but is playing nothing — put the live input on it`}
-              className="text-rec underline decoration-dotted disabled:no-underline disabled:opacity-60"
-            >
-              ○ {carrier.name} · ไม่มีสัญญาณ
-            </button>
-          </p>
-        ) : null}
-
-        {/* Kept mounted while the channel is off, just disabled: a fader that
-            disappears takes its value's visibility with it, and the value is
-            what you set before switching the channel back on. */}
-        <div className="flex flex-col items-stretch mt-0.5">
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              disabled={!isOn}
-              title={`ลดระดับเสียง${info.label}ทีละ 1%`}
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-line bg-raised font-mono text-[10px] font-bold text-ink-3 hover:text-ink active:scale-95 transition-all duration-100 disabled:pointer-events-none disabled:opacity-35 select-none"
-              {...decrementHandlers}
-            >
-              -
-            </button>
-            <div className="min-w-0 flex-1">
-              <MiniSlider
-                label=""
-                value={level}
-                min={0}
-                max={1.5}
-                step={0.01}
-                disabled={!isOn}
-                onChange={(value) => onLevel(id, value)}
-              />
-            </div>
-            <button
-              type="button"
-              disabled={!isOn}
-              title={`เพิ่มระดับเสียง${info.label}ทีละ 1%`}
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-line bg-raised font-mono text-[10px] font-bold text-ink-3 hover:text-ink active:scale-95 transition-all duration-100 disabled:pointer-events-none disabled:opacity-35 select-none"
-              {...incrementHandlers}
-            >
-              +
-            </button>
-          </div>
-          <span className={`text-center font-mono text-[9px] tabular-nums mt-0.5 select-none transition-colors duration-150 ${isOn ? 'text-ink-2' : 'text-ink-3/40'}`}>
-            {Math.round(level * 100)}%
+          <button
+            type="button"
+            onClick={() => onPutLive?.(id)}
+            disabled={!isArmed || !onPutLive}
+            title={`${carrier.name} carries this rack but is playing nothing — put the live input on it`}
+            className="truncate text-rec underline decoration-dotted underline-offset-2 disabled:no-underline disabled:opacity-60"
+          >
+            ○ {carrier.name} · ไม่มีสัญญาณ
+          </button>
+        ) : (
+          // An empty slot rather than nothing: without it this strip is a line
+          // shorter than its neighbours and its fader sits higher than theirs.
+          <span aria-hidden className="text-ink-3/30">
+            —
           </span>
+        )}
+      </p>
+
+      {/* ---- Row 3: the fader -------------------------------------------------
+          Horizontal after all. Upright freed width and spent travel, and in a
+          strip this size travel is what a fader is for. The vertical variant stays
+          in `MiniSlider` and `globals.css` for the wider console strips, where a
+          column can be tall enough to earn it. */}
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          disabled={!isOn}
+          title={`ลดระดับเสียง${info.label}ทีละ 1%`}
+          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-line bg-raised font-mono text-[10px] leading-none font-bold text-ink-3 transition-all duration-100 hover:border-ink-3/50 hover:text-ink active:scale-90 disabled:pointer-events-none disabled:opacity-30 select-none"
+          {...decrementHandlers}
+        >
+          -
+        </button>
+        <div className="min-w-0 flex-1">
+          <MiniSlider
+            label=""
+            value={level}
+            min={0}
+            max={1.5}
+            step={0.01}
+            disabled={!isOn}
+            onChange={(value) => onLevel(id, value)}
+            inputClassName="h-5!"
+          />
         </div>
+        <button
+          type="button"
+          disabled={!isOn}
+          title={`เพิ่มระดับเสียง${info.label}ทีละ 1%`}
+          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-line bg-raised font-mono text-[10px] leading-none font-bold text-ink-3 transition-all duration-100 hover:border-ink-3/50 hover:text-ink active:scale-90 disabled:pointer-events-none disabled:opacity-30 select-none"
+          {...incrementHandlers}
+        >
+          +
+        </button>
       </div>
     </div>
   );

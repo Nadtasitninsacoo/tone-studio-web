@@ -13,9 +13,10 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useSidebar } from '@/hooks/useSidebar';
+import { decideAutoCollapse, INITIAL_AUTO_COLLAPSE } from '@/lib/sidebarAuto';
 import { InstallApp } from './InstallApp';
 import { StudioStatus } from './StudioStatus';
 import { ThemeToggle } from './ThemeToggle';
@@ -45,6 +46,26 @@ export function Sidebar() {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useSidebar();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  /**
+   * Fold the rail away on the pages that need the width.
+   *
+   * The decision is a pure reducer in `lib/sidebarAuto.ts` and the memory it needs
+   * lives in a **ref**, not state: the reducer runs on every render, so keeping its
+   * bookkeeping in state would re-render to record that nothing happened — and
+   * `setState` in an effect body is the rule this codebase trips over most.
+   *
+   * `collapsed: null` means "leave it alone", which is what the reducer returns for
+   * every render except the one where something actually changes. That is what makes
+   * this safe to run unconditionally, and it is what stops the rail from folding
+   * again a moment after the player opens it.
+   */
+  const autoRef = useRef(INITIAL_AUTO_COLLAPSE);
+  useEffect(() => {
+    const decision = decideAutoCollapse(autoRef.current, pathname, isCollapsed);
+    autoRef.current = decision.next;
+    if (decision.collapsed !== null) setIsCollapsed(decision.collapsed);
+  }, [pathname, isCollapsed, setIsCollapsed]);
 
   // Escape closes the drawer, matching every other overlay in the app.
   useEffect(() => {

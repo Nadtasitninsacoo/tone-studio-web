@@ -633,6 +633,88 @@
     );
   }
 
+  /* ---- Vertical faders -------------------------------------------------
+     A console strip runs down, not across, and the reason is width: six
+     horizontal faders in a row spend most of a 1900px screen on the sliders
+     themselves and leave nothing beside them for the controls a channel
+     actually needs. Turned upright, each channel becomes a narrow column and
+     the space that was the fader's length becomes the column's height.
+
+     `writing-mode: vertical-lr` is the standard way to do this now — the old
+     `appearance: slider-vertical` is deprecated and was never in Firefox. It is
+     kept underneath purely as a floor for anything older than 2024; browsers
+     that understand the modern rule ignore it.
+
+     `direction: rtl` is not decoration. Without it the minimum sits at the
+     *top*, so the fader reads upside down: pulling it up turns the channel
+     down. Same class of silent wrongness as a flipped sign on a peg
+     direction — every colour and number stays right while the control does the
+     opposite of what it looks like. */
+  .fader-vertical {
+    appearance: slider-vertical;
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 1.125rem;
+    height: 100%;
+  }
+
+  /* The track and thumb both need their axes swapped by hand.
+     `.fader` sizes the track by `height` and offsets the thumb with a negative
+     `margin-top` to centre it on a horizontal rail — turned upright, the first
+     makes a short fat block instead of a narrow tall one, and the second shoves
+     the cap off the rail. Both were visible in the first pass: a fat pill with a
+     ball sitting beside it. */
+  .fader-vertical::-webkit-slider-runnable-track {
+    width: 0.3125rem;
+    height: 100%;
+    /* Quiet at the bottom. The horizontal rule reads `to right`, which after the
+       rotation and the `rtl` flip lands somewhere nobody could predict — so this
+       is stated outright rather than inherited. */
+    background: linear-gradient(
+      to top,
+      var(--c-inset),
+      color-mix(in oklab, var(--c-teal) 45%, var(--c-line-strong)) 55%,
+      color-mix(in oklab, var(--c-rec) 55%, var(--c-line-strong))
+    );
+  }
+
+  .fader-vertical::-moz-range-track {
+    width: 0.3125rem;
+    height: 100%;
+    background: linear-gradient(
+      to top,
+      var(--c-inset),
+      color-mix(in oklab, var(--c-teal) 45%, var(--c-line-strong)) 55%,
+      color-mix(in oklab, var(--c-rec) 55%, var(--c-line-strong))
+    );
+  }
+
+  /* A cap, not a ball. A console fader is a wide flat cap with a line across it,
+     and the shape is what makes its position readable at a glance from the side
+     of the eye — the same argument the amp's knobs won on pointer angle. It is
+     also simply smaller: 18x9 against a 20px circle. */
+  .fader-vertical::-webkit-slider-thumb {
+    appearance: none;
+    width: 1.125rem;
+    height: 0.5625rem;
+    margin-top: 0;
+    border-radius: 0.1875rem;
+    background: linear-gradient(to bottom, #f8fafc, #b8c2cf);
+    border: 1px solid var(--c-line-strong);
+    box-shadow:
+      0 1px 3px rgb(0 0 0 / 0.5),
+      inset 0 -1px 0 rgb(0 0 0 / 0.18);
+  }
+
+  .fader-vertical::-moz-range-thumb {
+    width: 1.125rem;
+    height: 0.5625rem;
+    border-radius: 0.1875rem;
+    background: linear-gradient(to bottom, #f8fafc, #b8c2cf);
+    border: 1px solid var(--c-line-strong);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+  }
+
   .fader-cyan::-webkit-slider-runnable-track {
     background: linear-gradient(
       to right,

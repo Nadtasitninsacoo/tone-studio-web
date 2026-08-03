@@ -20,6 +20,8 @@ interface MiniSliderProps {
   readout?: string;
   /** Custom CSS class for the input element */
   inputClassName?: string;
+  /** Upright, as a console strip. See `.fader-vertical` in `globals.css`. */
+  vertical?: boolean;
 }
 
 /** Compact labelled slider. */
@@ -33,7 +35,39 @@ export function MiniSlider({
   disabled,
   readout,
   inputClassName,
+  vertical = false,
 }: MiniSliderProps) {
+  /**
+   * Upright, the input has to be told to fill a height. A horizontal range fills
+   * whatever width it is given; turned on its side it collapses to its intrinsic
+   * size unless something stretches it, so this branch is a flex column with the
+   * input as the growing child rather than the same markup with a class on it.
+   */
+  if (vertical) {
+    return (
+      <label
+        className={`flex h-full flex-col items-center gap-0.5 select-none ${disabled ? 'opacity-40' : ''}`}
+      >
+        {label ? (
+          <span className="font-mono text-[9px] tracking-wider uppercase text-ink-3">{label}</span>
+        ) : null}
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className={`fader fader-vertical min-h-0 flex-1 ${inputClassName ?? ''}`}
+        />
+        {readout ? (
+          <span className="font-mono text-[9px] tabular-nums text-ink-2">{readout}</span>
+        ) : null}
+      </label>
+    );
+  }
+
   return (
     <label
       className={`flex flex-col gap-0.5 min-w-[70px] flex-1 select-none ${disabled ? 'opacity-40' : ''}`}
