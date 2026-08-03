@@ -13,6 +13,7 @@
 // Both relative, so this file compiles with a bare `npx tsc` and can be checked
 // from Node without the bundler's path aliases — the way `songFx` and `beats` are.
 import { clamp, dbToGain } from './audio';
+import { clampStrip, DEFAULT_STRIP } from './channelStrip';
 import type {
   ChannelPlacement,
   MixerChannel,
@@ -379,6 +380,10 @@ export function createChannel(id: string, name: string, patch: Partial<MixerChan
     name,
     source: { kind: 'empty' },
     insert: null,
+    // A fresh copy per channel: `DEFAULT_STRIP` is a module-level object, and
+    // sharing it would put one strip behind all eight the moment anything
+    // mutated in place. `clampStrip` already deep-copies.
+    strip: clampStrip(DEFAULT_STRIP),
     trimDb: 0,
     gainDb: 0,
     pan: 0,

@@ -24,6 +24,7 @@ import {
   setRigQuality,
   subscribeAmp,
 } from '@/lib/ampStore';
+import { clampStrip, type ChannelStrip } from '@/lib/channelStrip';
 import {
   audibleChannelIds,
   audibleGroupIds,
@@ -1197,6 +1198,28 @@ export function useMixer() {
     [change],
   );
 
+  /**
+   * Patch one channel's strip.
+   *
+   * A **partial** patch clamped against the channel's own current strip, not
+   * against the factory default — so a control that sends one field leaves the
+   * other twelve where the player put them. That is the same contract `clampAmp`
+   * has with the tone assistant, and the reason `clampStrip` takes a base at all.
+   *
+   * No rebuild follows: every field is an `AudioParam`, which is what
+   * `stripNeedsRebuild` promises and what `needsRebuild` is checked against.
+   */
+  const setChannelStrip = useCallback(
+    (id: string, patch: Partial<ChannelStrip>) =>
+      change((current) => ({
+        ...current,
+        channels: current.channels.map((channel) =>
+          channel.id === id ? { ...channel, strip: clampStrip(patch, channel.strip) } : channel,
+        ),
+      })),
+    [change],
+  );
+
   const setChannelPan = useCallback(
     (id: string, pan: number) =>
       change((current) => ({
@@ -1919,6 +1942,7 @@ export function useMixer() {
     /** The last few audio transitions, newest first. For when a silence needs explaining. */
     events,
     setChannelPan,
+    setChannelStrip,
     toggleChannelMute,
     toggleChannelSolo,
     setChannelInsert,

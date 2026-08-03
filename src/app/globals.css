@@ -693,26 +693,39 @@
      and the shape is what makes its position readable at a glance from the side
      of the eye — the same argument the amp's knobs won on pointer angle. It is
      also simply smaller: 18x9 against a 20px circle. */
+  /* The same hexagon a quarter-turn round: upright, the travel is vertical, so the
+     points belong at the top and bottom. A shape that pointed sideways on a
+     vertical fader would be indicating an axis the control cannot move along. */
   .fader-vertical::-webkit-slider-thumb {
     appearance: none;
     width: 1.125rem;
-    height: 0.5625rem;
+    height: 1.25rem;
     margin-top: 0;
-    border-radius: 0.1875rem;
-    background: linear-gradient(to bottom, #f8fafc, #b8c2cf);
-    border: 1px solid var(--c-line-strong);
-    box-shadow:
-      0 1px 3px rgb(0 0 0 / 0.5),
-      inset 0 -1px 0 rgb(0 0 0 / 0.18);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    border-radius: 0;
+    background: linear-gradient(
+      to right,
+      color-mix(in oklab, var(--c-blue) 78%, white),
+      var(--c-blue) 55%,
+      color-mix(in oklab, var(--c-blue) 72%, black)
+    );
+    border: none;
+    box-shadow: 0 1px 4px color-mix(in oklab, var(--c-blue) 45%, transparent);
   }
 
   .fader-vertical::-moz-range-thumb {
     width: 1.125rem;
-    height: 0.5625rem;
-    border-radius: 0.1875rem;
-    background: linear-gradient(to bottom, #f8fafc, #b8c2cf);
-    border: 1px solid var(--c-line-strong);
-    box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+    height: 1.25rem;
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    border-radius: 0;
+    background: linear-gradient(
+      to right,
+      color-mix(in oklab, var(--c-blue) 78%, white),
+      var(--c-blue) 55%,
+      color-mix(in oklab, var(--c-blue) 72%, black)
+    );
+    border: none;
+    box-shadow: 0 1px 4px color-mix(in oklab, var(--c-blue) 45%, transparent);
   }
 
   .fader-cyan::-webkit-slider-runnable-track {
@@ -731,15 +744,31 @@
     );
   }
 
+  /* A hexagon, not a circle, and it is the app's own language rather than a
+     flourish: the amp's controls are octagonal gauges for the reason recorded
+     above `ui/Knob` — a polygon's orientation is recognisable without reading, and
+     a circle has none. The points sit left and right, along the axis the control
+     travels, so the cap points at its own value.
+
+     `clip-path` rather than `border-radius`, since only one of them can describe
+     six sides. The border goes with it: a clipped element has no edge to draw on,
+     so the outline is a ring inside the shape via `box-shadow: inset`. */
   .fader::-webkit-slider-thumb {
     appearance: none;
     width: 1.25rem;
-    height: 1.25rem;
-    margin-top: -0.4375rem;
-    border-radius: 9999px;
-    background: linear-gradient(to bottom, #ffffff, #cbd5e1);
-    border: 1px solid var(--c-line-strong);
-    box-shadow: 0 1px 6px rgb(0 0 0 / 0.4);
+    height: 1.125rem;
+    margin-top: -0.375rem;
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    background: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--c-blue) 78%, white),
+      var(--c-blue) 55%,
+      color-mix(in oklab, var(--c-blue) 72%, black)
+    );
+    border: none;
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, var(--c-blue) 55%, white),
+      0 1px 6px color-mix(in oklab, var(--c-blue) 40%, transparent);
     transition:
       transform 0.18s var(--ease-spring),
       border-color 0.18s ease;
@@ -747,16 +776,24 @@
 
   .fader::-moz-range-thumb {
     width: 1.25rem;
-    height: 1.25rem;
-    border-radius: 9999px;
-    background: linear-gradient(to bottom, #ffffff, #cbd5e1);
-    border: 1px solid var(--c-line-strong);
-    box-shadow: 0 1px 6px rgb(0 0 0 / 0.4);
+    height: 1.125rem;
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    background: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--c-blue) 78%, white),
+      var(--c-blue) 55%,
+      color-mix(in oklab, var(--c-blue) 72%, black)
+    );
+    border: none;
+    box-shadow: 0 1px 6px color-mix(in oklab, var(--c-blue) 40%, transparent);
   }
 
+  /* A clipped thumb has no border to colour, so hover brightens the shape itself.
+     The old rule set `border-color` on an element whose border is now `none` — it
+     would have been a hover state that did half of nothing. */
   .fader:hover::-webkit-slider-thumb {
     transform: scale(1.14);
-    border-color: var(--c-cyan);
+    filter: brightness(1.18);
   }
 
   .fader:active::-webkit-slider-thumb {

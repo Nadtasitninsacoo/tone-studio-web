@@ -11,9 +11,25 @@
  *
  * Per channel:
  *
- *   source → trim → [rack insert] → panner → fader ─┐
- *                                                   ├→ group → master → limiter → out
- *   another channel ────────────────────────────────┘
+ *   source → trim → Ø → HPF → [rack insert] → EQ → comp → delay → panner → fader ─┐
+ *                                                                                 ├→ …
+ *   another channel ──────────────────────────────────────────────────────────────┘
+ *                                       … → group → master → limiter → out
+ *
+ * The strip's order is not arbitrary, and every position is a rule this codebase
+ * already wrote down somewhere else:
+ *
+ * - **Ø and the low cut come before the insert.** Rumble into a rack's gain stages
+ *   is amplified along with the note, which is the same argument that puts the
+ *   amp's gate before its drive rather than after it.
+ * - **The EQ comes after the insert.** A rack already carries tone shaping designed
+ *   for its instrument; the channel EQ is corrective — the room, the mic, the seat
+ *   in the mix — so it acts on what is actually leaving. Putting it first would
+ *   make it a second tone stack fighting the first.
+ * - **The compressor comes after the EQ**, because a compressor reacts to what it
+ *   is fed. `drumFx` says the same thing about its own EQ, in the same words.
+ * - **The alignment delay is last before the pan**, because it aligns the channel,
+ *   not one stage of it.
  *
  * The trim comes **before** the insert and the fader after it, which is the whole
  * reason a strip has two level controls: the trim decides how hard the rack is driven,
@@ -40,6 +56,13 @@
 import {
   AMP_WORKLET_URL,
 } from './ampFx';
+import {
+  clampStrip,
+  PEAK_Q,
+  SHELF_Q,
+  STRIP_RANGES,
+  type ChannelStrip,
+} from './channelStrip';
 import { makeBypass } from './bypass';
 import {
   audibleChannelIds,
@@ -53,6 +76,26 @@ import { createRigChain, type RigChain, type RigSettings } from './rig';
 import type { MixerState } from '../types/mixer';
 
 /** One channel's nodes. The source is attached later, per run. */
+/**
+ * One channel strip's nodes, in signal order.
+ *
+ * All of them always exist. "Off" is a neutral setting, never a disconnection:
+ * polarity at +1, the low cut at its lowest corner, the EQ flat, the compressor at
+ * ratio 1, the delay at zero. Same rule the amp's stages follow — neutralised in
+ * place, so a switch is a parameter write and never a rebuild.
+ */
+export interface StripNodes {
+  /** Polarity: a gain of +1 or -1. */
+  invert: GainNode;
+  hpf: BiquadFilterNode;
+  low: BiquadFilterNode;
+  lowMid: BiquadFilterNode;
+  highMid: BiquadFilterNode;
+  high: BiquadFilterNode;
+  comp: DynamicsCompressorNode;
+  delay: DelayNode;
+}
+
 export interface ChannelNodes {
   id: string;
   /**
@@ -90,6 +133,16 @@ export interface ChannelNodes {
   inputTimeDomain: Float32Array<ArrayBuffer>;
   /** The rack, when one is inserted. Kept so a settings change can reach it. */
   rack: RigChain | null;
+  /**
+   * The channel strip's nodes, always built.
+   *
+   * Unconditional, unlike the rack — and that is what makes `stripNeedsRebuild()`
+   * able to return a constant. If these appeared when a control left its default,
+   * the first turn of an EQ knob would be a graph rebuild, which is a click on a
+   * live channel. Five biquads, a native compressor and a delay line cost almost
+   * nothing next to one rack; the rack is the thing worth building lazily.
+   */
+  strip: StripNodes;
   panner: StereoPannerNode;
   fader: GainNode;
   /** Post-fader tap for this strip's meter. Analyser, not a script node. */
@@ -237,6 +290,111 @@ export interface BuildOptions {
  * mute state has to be rebuilt every time one is pressed — which is the design this
  * project already replaced once, on the recorder's six parallel racks.
  */
+
+/**
+ * Build one channel strip and wire it end to end. Returns its head and tail.
+ *
+ * The nodes are created flat and connected in signal order here rather than in the
+ * channel loop, so the order is readable in one place and the loop stays about
+ * routing. Nothing is conditional: see `StripNodes`.
+ */
+function buildStrip(ctx: BaseAudioContext): {
+  nodes: StripNodes;
+  head: AudioNode;
+  tail: AudioNode;
+} {
+  const invert = ctx.createGain();
+
+  const hpf = ctx.createBiquadFilter();
+  hpf.type = 'highpass';
+  hpf.Q.value = SHELF_Q;
+
+  const low = ctx.createBiquadFilter();
+  low.type = 'lowshelf';
+  low.frequency.value = 120;
+  low.Q.value = SHELF_Q;
+
+  const lowMid = ctx.createBiquadFilter();
+  lowMid.type = 'peaking';
+  lowMid.Q.value = PEAK_Q;
+
+  const highMid = ctx.createBiquadFilter();
+  highMid.type = 'peaking';
+  highMid.Q.value = PEAK_Q;
+
+  const high = ctx.createBiquadFilter();
+  high.type = 'highshelf';
+  high.frequency.value = 8000;
+  high.Q.value = SHELF_Q;
+
+  const comp = ctx.createDynamicsCompressor();
+  // Knee 0: the strip's compressor is a corrective tool and a soft knee makes the
+  // ratio a lie near the threshold. The racks keep their own, gentler behaviour.
+  comp.knee.value = 0;
+
+  // Sized from the range, not from the value — `maxDelayTime` is fixed for a node's
+  // life, so a delay built at the current setting could never be turned up.
+  const delay = ctx.createDelay(STRIP_RANGES.delayMs[1] / 1000);
+
+  invert.connect(hpf);
+  hpf.connect(low);
+  low.connect(lowMid);
+  lowMid.connect(highMid);
+  highMid.connect(high);
+
+  return {
+    nodes: { invert, hpf, low, lowMid, highMid, high, comp, delay },
+    head: invert,
+    tail: high,
+  };
+}
+
+/**
+ * Write a strip's settings onto its nodes.
+ *
+ * Every one is an `AudioParam` or a settable enum, which is what `stripNeedsRebuild`
+ * promises. Ramped like every other level in this file, except the two that must
+ * not be: see below.
+ */
+export function applyStrip(
+  nodes: StripNodes,
+  raw: ChannelStrip,
+  at: number,
+  rampSec: number,
+): void {
+  const strip = clampStrip(raw);
+
+  // Polarity is a sign, not a level. Ramping it sweeps the channel through zero —
+  // audible as a dip on every flip — so it is set outright.
+  nodes.invert.gain.value = strip.invert ? -1 : 1;
+
+  // "Off" is the lowest corner the range allows rather than a disconnection, so the
+  // switch is a parameter write like everything else here.
+  nodes.hpf.frequency.setTargetAtTime(
+    strip.hpf.enabled ? strip.hpf.hz : STRIP_RANGES.hpfHz[0],
+    at,
+    rampSec,
+  );
+
+  nodes.low.gain.setTargetAtTime(strip.eq.lowDb, at, rampSec);
+  nodes.lowMid.frequency.setTargetAtTime(strip.eq.lowMidHz, at, rampSec);
+  nodes.lowMid.gain.setTargetAtTime(strip.eq.lowMidDb, at, rampSec);
+  nodes.highMid.frequency.setTargetAtTime(strip.eq.highMidHz, at, rampSec);
+  nodes.highMid.gain.setTargetAtTime(strip.eq.highMidDb, at, rampSec);
+  nodes.high.gain.setTargetAtTime(strip.eq.highDb, at, rampSec);
+
+  // Ratio 1 is a mathematical no-op, so a disabled compressor stays in the path
+  // doing nothing — the same trick the amp's compressor uses.
+  nodes.comp.threshold.setTargetAtTime(strip.comp.thresholdDb, at, rampSec);
+  nodes.comp.ratio.setTargetAtTime(strip.comp.enabled ? strip.comp.ratio : 1, at, rampSec);
+  nodes.comp.attack.setTargetAtTime(strip.comp.attack, at, rampSec);
+  nodes.comp.release.setTargetAtTime(strip.comp.release, at, rampSec);
+
+  // Not ramped either. A sliding delay line is a pitch shift — that is what a
+  // flanger is — and this exists to align microphones, not to sweep them.
+  nodes.delay.delayTime.value = strip.delayMs / 1000;
+}
+
 export function buildMixGraph({
   ctx,
   state,
@@ -348,6 +506,12 @@ export function buildMixGraph({
     inputAnalyser.smoothingTimeConstant = 0;
     trim.connect(inputAnalyser);
 
+    // The strip sits between the trim and the insert on its front half, and
+    // between the insert and the panner on its back half — see the chain at the
+    // top of this file for why each stage is where it is.
+    const strip = buildStrip(ctx);
+    trim.connect(strip.head);
+
     let rack: RigChain | null = null;
     // No source, no rack. A rig chain is the most expensive thing in this app — a
     // convolver plus two AudioWorklet processors each — and the starting desk names six
@@ -361,16 +525,18 @@ export function buildMixGraph({
     if (channel.insert !== null && channel.source.kind !== 'empty') {
       try {
         rack = createRigChain(ctx, channel.insert, rig);
-        trim.connect(rack.input);
-        rack.output.connect(panner);
-        rackBypass = makeBypass(trim, rack, panner);
+        strip.tail.connect(rack.input);
+        rack.output.connect(strip.nodes.comp);
+        rackBypass = makeBypass(strip.tail, rack, strip.nodes.comp);
       } catch {
         // A rack that will not build (its worklets, on a browser that refuses them)
         // must not take the channel with it: pass the signal through clean.
         rack = null;
       }
     }
-    if (rack === null) trim.connect(panner);
+    if (rack === null) strip.tail.connect(strip.nodes.comp);
+    strip.nodes.comp.connect(strip.nodes.delay);
+    strip.nodes.delay.connect(panner);
 
     panner.connect(fader);
     fader.connect(channelAnalyser);
@@ -388,12 +554,19 @@ export function buildMixGraph({
       inputTimeDomain: new Float32Array(inputAnalyser.fftSize),
       rack,
       rackBypass,
+      strip: strip.nodes,
       panner,
       fader,
       analyser: channelAnalyser,
       timeDomain: new Float32Array(channelAnalyser.fftSize),
       groupId: target ? channel.groupId : null,
     });
+
+    // Applied at build time, not left to the next state change: a rebuild that
+    // returned a flat strip would silently undo the player's EQ until they touched
+    // something, which is the hole `lastAppliedStateRef` was added to close on the
+    // other side.
+    applyStrip(strip.nodes, channel.strip, ctx.currentTime, 0);
   }
 
   const disconnect = () => {
@@ -401,6 +574,10 @@ export function buildMixGraph({
       try {
         nodes.trim.disconnect();
         nodes.inputAnalyser.disconnect();
+        // Every strip node, not just the ends: `disconnect()` clears a node's own
+        // outputs, so anything left out here stays wired into a graph that has
+        // been thrown away. Cheap nodes accumulate too.
+        for (const node of Object.values(nodes.strip)) node.disconnect();
         nodes.rack?.disconnect();
         nodes.panner.disconnect();
         nodes.fader.disconnect();
@@ -479,6 +656,7 @@ export function applyMixState(
     nodes.trim.gain.setTargetAtTime(trimGain(channel.trimDb), at, rampSec);
     nodes.fader.gain.setTargetAtTime(channelGain(channel, audible), at, rampSec);
     nodes.panner.pan.setTargetAtTime(channel.pan, at, rampSec);
+    applyStrip(nodes.strip, channel.strip, at, rampSec);
     nodes.rack?.update(rig);
   }
 

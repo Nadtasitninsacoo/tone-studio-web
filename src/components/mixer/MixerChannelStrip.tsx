@@ -8,6 +8,10 @@ interface MixerChannelStripProps {
   name: string;
   gain: number;      // -24 to +24 dB
   pan: number;       // -100 (L) to +100 (R)
+  /** Whether the strip panel below is showing this channel. */
+  isSelected?: boolean;
+  /** Press anywhere on the strip to bring it into the panel. */
+  onSelect?: () => void;
   volume: number;    // 0 to 100 (fader level)
   mute: boolean;
   getMeter: (id: string) => StripMeter;
@@ -34,6 +38,8 @@ export function MixerChannelStrip({
   name,
   gain,
   pan,
+  isSelected = false,
+  onSelect,
   volume,
   mute,
   getMeter,
@@ -131,7 +137,15 @@ export function MixerChannelStrip({
                       hudColor === 'amber' ? '#f59e0b' : '#ec4899';
 
   return (
-    <div className={`flex flex-col items-center py-2.5 px-1 bg-panel/30 border border-line rounded-lg w-17.5 transition-all select-none ${mute ? 'opacity-60' : ''}`}>
+    // `onClick` on the container, not a button wrapping it: the strip is full of
+    // controls, and a button around them would swallow their own presses. Selecting
+    // is what a click that hit nothing else means.
+    <div
+      onClick={onSelect}
+      className={`flex flex-col items-center py-2.5 px-1 bg-panel/30 border rounded-lg w-17.5 transition-all select-none ${
+        mute ? 'opacity-60' : ''
+      } ${isSelected ? 'border-cyan/70 bg-cyan/5' : 'border-line'}`}
+    >
       {/* 1. Header Channel Label */}
       <span className="font-mono text-[8px] font-bold tracking-wider text-ink-2 uppercase bg-inset px-2 py-0.5 rounded border border-line mb-2 w-full text-center">
         {name}

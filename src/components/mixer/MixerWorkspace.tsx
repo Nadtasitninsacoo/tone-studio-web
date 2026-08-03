@@ -22,6 +22,7 @@ import { setHudColor as setHudColorStore, type HudColor } from '@/lib/hudColor';
 import { dbToFaderPosition, faderPositionToDb } from '@/lib/mixer';
 
 import { MixerChannelStrip } from './MixerChannelStrip';
+import { ChannelStripPanel } from './ChannelStripPanel';
 import { MixerSourceRow } from './MixerSourceRow';
 import { MixerTransport } from './MixerTransport';
 import { DspCrossoverGraph } from './DspCrossoverGraph';
@@ -112,6 +113,20 @@ export function MixerWorkspace() {
     getDeskOwnsSound,
     getServerDeskOwnsSound,
   );
+
+  /**
+   * Which channel the strip panel below is showing.
+   *
+   * A selected channel, not a per-strip section: thirteen controls on eight strips
+   * is a hundred and four controls, and every large console for thirty years has
+   * answered that the same way. Defaults to the first strip so the panel is never
+   * an empty box asking to be filled.
+   */
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected =
+    mixer.state.channels.find((channel) => channel.id === selectedId) ??
+    mixer.state.channels[0] ??
+    null;
 
   // Selected tab in the right panel: 'mixer' | 'dsp'
   const [activeTab, setActiveTab] = useState<'mixer' | 'dsp'>('dsp');
@@ -420,6 +435,8 @@ export function MixerWorkspace() {
                     }
                   }}
                   hudColor={hudColor}
+                  isSelected={selected?.id === channel.id}
+                  onSelect={() => setSelectedId(channel.id)}
                   source={channel.source.kind}
                   // A toggle, not a one-way switch: pressing LIVE IN again gives the
                   // channel back. Turning something on with no way to turn it off is not
@@ -431,6 +448,18 @@ export function MixerWorkspace() {
                   }
                 />
               ))}
+            </div>
+
+            {/* The shaping for whichever strip is selected. Below the row rather
+                than beside it: the panel is wide and the row is already scrolling
+                horizontally, so putting them side by side would make both narrow. */}
+            <div className="mt-3">
+              <ChannelStripPanel
+                channel={selected}
+                onChange={(patch) => {
+                  if (selected) mixer.setChannelStrip(selected.id, patch);
+                }}
+              />
             </div>
 
             {/* What each strip is playing. A fader can only change the level of

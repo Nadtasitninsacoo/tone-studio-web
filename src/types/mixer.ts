@@ -24,6 +24,7 @@
  * node could not.
  */
 
+import type { ChannelStrip } from '../lib/channelStrip';
 import type { Instrument } from '../lib/rig';
 
 /** Where a channel's audio comes from. */
@@ -60,6 +61,13 @@ export interface MixerChannel {
   source: ChannelSource;
   /** Which instrument rack is inserted, or null for a clean channel. */
   insert: Instrument | null;
+  /**
+   * The channel's own shaping — polarity, low cut, EQ, compressor, alignment.
+   *
+   * Separate from `insert` and cheap on purpose: see the note at the top of
+   * `lib/channelStrip.ts`. Every channel has one; only a few want a rack.
+   */
+  strip: ChannelStrip;
   /**
    * Input trim in dB, **before** the insert. −24…+24.
    *
