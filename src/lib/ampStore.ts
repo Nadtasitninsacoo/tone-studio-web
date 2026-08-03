@@ -273,6 +273,67 @@ export function setRigDeskLink(next: boolean): void {
   emit();
 }
 
+/* --------------------------------------------------------------------------
+   Who is making the sound
+
+   Two derived answers, in **one** place, because asking twice is how this app has
+   now produced the same bug three times:
+
+   - the sidebar said `MONITOR: RIG` while the desk was making the sound;
+   - the desk's banner said the engine was parked while it was running;
+   - and `MixerWorkspace` read the *bridge* where it meant "does the desk own the
+     sound", so pressing "take the sound" on the desk with the bridge off left the
+     page insisting it was parked and offering a button to turn the bridge on. The
+     Rig side had gone quiet as designed, so both halves of the screen agreed that
+     nothing was playing — which is indistinguishable from a broken desk, and was
+     read as exactly that.
+
+   Every consumer reads these, and nobody re-derives them. Same rule as
+   `audibleChannelIds` on the desk: two functions deciding independently is how a
+   soloed channel inside a muted group ends up silent with both of them convinced
+   they were right.
+-------------------------------------------------------------------------- */
+
+/**
+ * Whether the desk is the end of the chain — the engine feeding the room.
+ *
+ * Pure, so the four combinations can be checked from Node.
+ */
+export function deskOwnsSound(scope: MonitorScope, bridged: boolean): boolean {
+  return scope === 'mixer' || bridged;
+}
+
+/**
+ * Whether the Rig page's own monitor bus is the one feeding the room.
+ *
+ * The exact complement of `deskOwnsSound`, and that is the invariant rather than a
+ * coincidence: **exactly one side owns the live monitor.** Both true is two sets of
+ * gates, limiters, convolvers and oversampled waveshapers on one instrument, which
+ * is the load that made the output stream give up. Both false is silence with every
+ * reading on screen still looking correct — the bug above. A Node check covers all
+ * four combinations in both directions.
+ */
+export function rigOwnsMonitor(scope: MonitorScope, bridged: boolean): boolean {
+  return scope === 'recorder' && !bridged;
+}
+
+export function getDeskOwnsSound(): boolean {
+  return deskOwnsSound(monitorScope, rigDeskLink);
+}
+
+/** Matches the server defaults above: the recorder is the front door, unbridged. */
+export function getServerDeskOwnsSound(): boolean {
+  return deskOwnsSound(getServerMonitorScope(), getServerRigDeskLink());
+}
+
+export function getRigOwnsMonitor(): boolean {
+  return rigOwnsMonitor(monitorScope, rigDeskLink);
+}
+
+export function getServerRigOwnsMonitor(): boolean {
+  return rigOwnsMonitor(getServerMonitorScope(), getServerRigDeskLink());
+}
+
 export function getMasterVolume(): number {
   return masterVolume;
 }

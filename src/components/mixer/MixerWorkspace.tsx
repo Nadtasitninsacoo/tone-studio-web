@@ -12,8 +12,8 @@ import {
   getServerRigSnapshot,
   setBassSettings,
   setRigDeskLink,
-  getRigDeskLink,
-  getServerRigDeskLink,
+  getDeskOwnsSound,
+  getServerDeskOwnsSound,
 } from '@/lib/ampStore';
 import { useHudColor } from '@/hooks/useHudColor';
 import { setHudColor as setHudColorStore, type HudColor } from '@/lib/hudColor';
@@ -97,11 +97,21 @@ export function MixerWorkspace() {
   /**
    * Who the sound is coming out of, from the one place that decides it.
    *
-   * The desk is audible when it owns the monitor, or when the bridge has both sides live.
-   * Read from the store rather than from the desk's own `monitorLive` copy, because the two
-   * were disagreeing and the page was reporting the wrong one.
+   * The desk is audible when it owns the monitor **or** when the bridge has both sides
+   * live. This read the bridge alone, which is only the second half: pressing "take the
+   * sound" here with the bridge off left the banner below insisting the engine was parked
+   * — and offering to turn the bridge on — while the desk was in fact live and unparked.
+   * The Rig side had gone quiet as designed, so nothing on screen claimed to be making a
+   * sound, which reads as a dead desk.
+   *
+   * Read from the store rather than from the desk's own `monitorLive` copy, because the
+   * two were disagreeing and the page was reporting the wrong one.
    */
-  const deskOwnsSound = useSyncExternalStore(subscribeAmp, getRigDeskLink, getServerRigDeskLink);
+  const deskOwnsSound = useSyncExternalStore(
+    subscribeAmp,
+    getDeskOwnsSound,
+    getServerDeskOwnsSound,
+  );
 
   // Selected tab in the right panel: 'mixer' | 'dsp'
   const [activeTab, setActiveTab] = useState<'mixer' | 'dsp'>('dsp');

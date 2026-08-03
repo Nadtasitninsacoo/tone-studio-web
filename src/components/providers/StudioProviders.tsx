@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import {
+  deskOwnsSound,
   getRigDeskLink,
   getServerRigDeskLink,
   setRigSettings,
@@ -243,7 +244,9 @@ function MixerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Bridged, the desk stays live even when the Rig side owns the monitor — that is what
     // "work together" means, and it is the one case where both engines sound at once.
-    setMonitorLive(monitorScope === 'mixer' || rigDeskLink);
+    // `deskOwnsSound` rather than the expression inlined: this rule had three copies and
+    // one of them was wrong. See the note above it in `lib/ampStore.ts`.
+    setMonitorLive(deskOwnsSound(monitorScope, rigDeskLink));
 
     /**
      * Taking the sound has to *give you the sound*, not just the right to it.

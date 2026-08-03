@@ -43,6 +43,7 @@ import {
   getServerRigQuality,
   getServerRigDeskLink,
   getServerMonitorBufferMs,
+  rigOwnsMonitor,
   setMasterVolume,
   setRigQuality,
   setMonitorBufferMs,
@@ -518,8 +519,12 @@ export function useRecorder(onTakeReady?: (take: Take) => void) {
    *
    * Never both. Bridged, the desk is the end of the chain and this bus closes; unbridged,
    * there is no desk in the chain and this is the monitor.
+   *
+   * From `rigOwnsMonitor` rather than the expression inlined, because this rule had three
+   * copies and one of them was wrong — see the note above it in `lib/ampStore.ts`. Never
+   * both *and* never neither is checked there across all four combinations.
    */
-  const ownsMonitor = monitorScope === 'recorder' && !rigDeskLink;
+  const ownsMonitor = rigOwnsMonitor(monitorScope, rigDeskLink);
   /** Shared with the desk: one machine, one buffer. See `lib/ampStore.ts`. */
   const bufferMs = useSyncExternalStore(
     subscribeAmp,
