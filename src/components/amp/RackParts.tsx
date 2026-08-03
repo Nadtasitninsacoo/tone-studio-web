@@ -1,7 +1,7 @@
 'use client';
 
 import { Power } from 'lucide-react';
-import { useRef, type ReactNode, type RefObject } from 'react';
+import { Children, isValidElement, useRef, type ReactNode, type RefObject } from 'react';
 
 import { useAnimationFrame } from '@/hooks/useAnimationFrame';
 
@@ -62,14 +62,58 @@ export function Block({
           {contains}
         </p>
       ) : null}
-      <div className="flex flex-col gap-1">{children}</div>
+      <div className="flex flex-col gap-1">{pairRows(children)}</div>
     </section>
   );
 }
 
 /** Knobs sit in a wrapping row so a narrow column reflows instead of clipping. */
 export function KnobRow({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap items-start justify-start gap-1">{children}</div>;
+  return <div className="flex flex-wrap items-center justify-start gap-x-1.5 gap-y-0.5">{children}</div>;
+}
+
+/**
+ * Put a stage's controls on the same line as its name.
+ *
+ * A section like GATE was a header row, and then a whole row below it holding one
+ * knob — four lines of height for one control, most of it air, repeated down every
+ * column of every rack. Beside the header it is one line.
+ *
+ * Done here rather than by rewriting six racks: `Block` already receives them as
+ * siblings, so pairing a `Row` with the `KnobRow` that immediately follows costs
+ * one function and reaches every rack at once. **The pairing is positional, and
+ * failing it is harmless** — anything between them, or a `KnobRow` standing alone,
+ * simply renders as it always did, stacked. That is the whole reason it is safe to
+ * do by structure rather than by asking six files to opt in.
+ *
+ * It wraps: on a narrow column the knobs drop back under the header rather than
+ * squeezing, which is the same `flex-wrap` bargain `KnobRow` itself already makes.
+ */
+function pairRows(children: ReactNode): ReactNode {
+  const items = Children.toArray(children);
+  const out: ReactNode[] = [];
+
+  for (let i = 0; i < items.length; i += 1) {
+    const item = items[i];
+    const next = items[i + 1];
+    const pairable =
+      isValidElement(item) && item.type === Row && isValidElement(next) && next.type === KnobRow;
+
+    if (!pairable) {
+      out.push(item);
+      continue;
+    }
+
+    out.push(
+      <div key={`pair-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <div className="min-w-40 flex-1">{item}</div>
+        {next}
+      </div>,
+    );
+    i += 1;
+  }
+
+  return out;
 }
 
 /** A named stage with a stomp-style enable that dims the controls when off. */

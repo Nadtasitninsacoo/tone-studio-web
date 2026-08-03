@@ -205,11 +205,16 @@ export function Knob({
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
       onKeyDown={handleKeyDown}
-      className={`flex touch-none flex-col items-center gap-0.5 rounded-lg px-1 py-1 outline-none select-none focus-visible:ring-2 focus-visible:ring-cyan/60 ${
+      /* Horizontal: gauge on the left, its name and value stacked beside it.
+         Stacked vertically this was four rows tall for one control — gauge,
+         label, then the step buttons — and a rack section holding a single knob
+         spent most of its height on air. Beside it, the whole thing is as tall as
+         the gauge and nothing else changes. */
+      className={`flex touch-none items-center gap-1.5 rounded-lg px-1 py-0.5 outline-none select-none focus-visible:ring-2 focus-visible:ring-cyan/60 ${
         disabled ? 'pointer-events-none opacity-35' : 'cursor-ns-resize'
       }`}
     >
-      <svg viewBox="0 0 48 48" className="h-10 w-10 sm:h-11 sm:w-11" aria-hidden>
+      <svg viewBox="0 0 48 48" className="h-9 w-9 shrink-0 sm:h-10 sm:w-10" aria-hidden>
         <path
           d={polygonArcPath(START_ANGLE, START_ANGLE + SWEEP, TRACK)}
           fill="none"
@@ -259,10 +264,11 @@ export function Knob({
         ) : null}
       </svg>
 
+      <div className="flex min-w-0 flex-col items-start gap-0.5">
       <span className="font-mono text-[8px] leading-none tracking-[0.12em] whitespace-nowrap uppercase text-ink-3">
         {label}
       </span>
-      <div className="flex items-center gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
           disabled={disabled}
@@ -284,6 +290,7 @@ export function Knob({
         >
           +
         </button>
+      </div>
       </div>
     </div>
   );
