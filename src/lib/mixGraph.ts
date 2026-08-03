@@ -58,6 +58,8 @@ import {
 } from './ampFx';
 import {
   clampStrip,
+  HIGH_SHELF_HZ,
+  LOW_SHELF_HZ,
   PEAK_Q,
   SHELF_Q,
   STRIP_RANGES,
@@ -311,7 +313,7 @@ function buildStrip(ctx: BaseAudioContext): {
 
   const low = ctx.createBiquadFilter();
   low.type = 'lowshelf';
-  low.frequency.value = 120;
+  low.frequency.value = LOW_SHELF_HZ;
   low.Q.value = SHELF_Q;
 
   const lowMid = ctx.createBiquadFilter();
@@ -324,7 +326,7 @@ function buildStrip(ctx: BaseAudioContext): {
 
   const high = ctx.createBiquadFilter();
   high.type = 'highshelf';
-  high.frequency.value = 8000;
+  high.frequency.value = HIGH_SHELF_HZ;
   high.Q.value = SHELF_Q;
 
   const comp = ctx.createDynamicsCompressor();

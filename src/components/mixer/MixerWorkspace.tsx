@@ -26,6 +26,7 @@ import { ChannelStripPanel } from './ChannelStripPanel';
 import { MixerSourceRow } from './MixerSourceRow';
 import { MixerTransport } from './MixerTransport';
 import { DspCrossoverGraph } from './DspCrossoverGraph';
+import { StripEqGraph } from './StripEqGraph';
 import { DspPhaseGraph } from './DspPhaseGraph';
 
 // Standard 8 channels
@@ -512,6 +513,19 @@ export function MixerWorkspace() {
                     onChange={(hz) => setBassSettings({ ...rigStore.bass, crossoverHz: hz })}
                     hudColor={hudColor}
                   />
+
+                  {/* The selected channel's EQ, between the two rig graphs.
+                      `justify-between` was pushing the crossover to the top and the
+                      phase plot to the bottom with a third of the panel empty in
+                      between — and the controls that most needed a picture were the
+                      ones with none, since the strip panel below turns four bands
+                      with nothing to look at. */}
+                  <div className="border-t border-line/45 pt-3.5">
+                    <StripEqGraph
+                      strip={selected?.strip ?? null}
+                      channelName={selected?.name ?? null}
+                    />
+                  </div>
 
                   <div className="flex flex-col gap-3.5 border-t border-line/45 pt-3.5">
                     <DspPhaseGraph

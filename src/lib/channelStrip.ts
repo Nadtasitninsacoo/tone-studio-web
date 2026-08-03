@@ -137,6 +137,15 @@ export const STRIP_RANGES = {
 
 export type StripRangeKey = keyof typeof STRIP_RANGES;
 
+/**
+ * Where the two shelves turn over.
+ *
+ * Named constants because the graph and the graph-builder both need them, and a
+ * curve drawn at 100 Hz for a shelf built at 120 is a picture of something else.
+ */
+export const LOW_SHELF_HZ = 120;
+export const HIGH_SHELF_HZ = 8000;
+
 /** Q for both shelves. Gentle — a resonant shelf is a peak with extra steps. */
 export const SHELF_Q = 0.7;
 
@@ -227,6 +236,42 @@ export function clampStrip(input: unknown, base: ChannelStrip = DEFAULT_STRIP): 
  */
 export function stripNeedsRebuild(): false {
   return false;
+}
+
+/**
+ * The strip's filters, as a cascade anything can measure.
+ *
+ * The point is that there is **one** description. `mixGraph` builds the nodes from
+ * the same numbers a graph plots the curve from, so the picture cannot drift from
+ * the sound — the failure this codebase has already met twice as two answers to one
+ * question, in `deskOwnsSound` and in the rig row's carrier line.
+ *
+ * The compressor is not here and cannot be: its curve is a level map, not a
+ * frequency one, and drawing it on the same axes would be a different measurement
+ * wearing this one's clothes. Nor is the delay, for the same reason — it moves
+ * phase, and this is a magnitude plot.
+ *
+ * A disabled low cut is emitted at the bottom of its own range rather than dropped,
+ * exactly as `applyStrip` writes it, so the plotted cascade has the same number of
+ * sections whatever is switched on.
+ */
+export function stripSections(strip: ChannelStrip): {
+  type: 'highpass' | 'lowshelf' | 'peaking' | 'highshelf';
+  frequency: number;
+  q: number;
+  gainDb?: number;
+}[] {
+  return [
+    {
+      type: 'highpass',
+      frequency: strip.hpf.enabled ? strip.hpf.hz : STRIP_RANGES.hpfHz[0],
+      q: SHELF_Q,
+    },
+    { type: 'lowshelf', frequency: LOW_SHELF_HZ, q: SHELF_Q, gainDb: strip.eq.lowDb },
+    { type: 'peaking', frequency: strip.eq.lowMidHz, q: PEAK_Q, gainDb: strip.eq.lowMidDb },
+    { type: 'peaking', frequency: strip.eq.highMidHz, q: PEAK_Q, gainDb: strip.eq.highMidDb },
+    { type: 'highshelf', frequency: HIGH_SHELF_HZ, q: SHELF_Q, gainDb: strip.eq.highDb },
+  ];
 }
 
 /**
