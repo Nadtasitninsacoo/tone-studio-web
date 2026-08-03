@@ -31,6 +31,7 @@ import Anthropic from '@anthropic-ai/sdk';
 
 import { DEFAULT_AMP } from '@/lib/ampFx';
 import { AMP_RANGES, CABINET_IDS, clampAmp } from '@/lib/ampSchema';
+import { MIC_PLACEMENTS, MIC_POSITIONS } from '@/lib/cabinet';
 import { DEFAULT_BASS } from '@/lib/bassFx';
 import { DEFAULT_DRUMS } from '@/lib/drumFx';
 import { DEFAULT_VOCALS } from '@/lib/vocalFx';
@@ -99,6 +100,7 @@ function guitarSchema() {
       model: { type: 'string', enum: [...CABINET_IDS] },
       presenceDb: number,
       resonanceDb: number,
+      mic: { type: 'string', enum: [...MIC_POSITIONS] },
       width: number,
     }),
     delay: object({ enabled: boolean, timeSec: number, feedback: number, mix: number }),
@@ -418,6 +420,11 @@ function guitarPrompt(): string {
     `intent, so stay inside them): ${describeRanges(AMP_RANGES)}.`,
     'drive.stages is 1, 2 or 3 cascaded valve stages.',
     `cab.model is one of: ${CABINET_IDS.join(', ')}.`,
+    'cab.mic is where the microphone sits, which is a tone control and not a level one —',
+    'all three are matched at 1 kHz, so moving it changes the voicing and nothing else:',
+    ...MIC_PLACEMENTS.map((mic) => `  ${mic.id} — ${mic.hint}`),
+    'Reach for it before the treble knob when the amp is harsh: off-axis is what a',
+    'engineer does first, and it takes the fizz without taking the articulation.',
     '',
     'Signal order, which constrains what each control can do:',
     'input trim -> gate -> compressor -> tone stack -> drive stages -> cabinet',

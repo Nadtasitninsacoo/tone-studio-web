@@ -28,7 +28,7 @@
  * ---------------------------------------------------------------------------
  */
 
-import { DEFAULT_AMP, type AmpSettings } from './ampFx';
+import { DEFAULT_AMP, type AmpOverride, type AmpSettings } from './ampFx';
 
 export interface TonePreset {
   id: string;
@@ -50,7 +50,10 @@ export interface TonePreset {
 }
 
 /** Deep-ish clone so a preset cannot be mutated by the UI editing live settings. */
-function withAmp(over: Partial<AmpSettings>): AmpSettings {
+// `AmpOverride`, not `Partial<AmpSettings>`: the groups are partial *within*
+// themselves, so adding one field to a group does not break the twelve presets
+// that mention it. Shared with `ampFx`'s own copy rather than redeclared.
+function withAmp(over: AmpOverride): AmpSettings {
   return {
     ...DEFAULT_AMP,
     ...over,

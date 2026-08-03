@@ -24,7 +24,7 @@
  */
 
 import type { AmpSettings } from './ampFx';
-import type { CabinetId } from './cabinet';
+import { MIC_POSITIONS, type CabinetId, type MicPosition } from './cabinet';
 
 /** Inclusive `[min, max]` for every numeric parameter, keyed by a flat name. */
 export const AMP_RANGES = {
@@ -105,6 +105,12 @@ export function clampAmp(input: unknown, base: AmpSettings): AmpSettings {
   const model = CABINET_IDS.includes(cab.model as CabinetId)
     ? (cab.model as CabinetId)
     : base.cab.model;
+  // Same treatment as the model: an unknown placement falls back to the one already
+  // in use rather than to a constant, so a reply that got this field wrong leaves the
+  // player's mic where they put it instead of moving it to `center`.
+  const mic = MIC_POSITIONS.includes(cab.mic as MicPosition)
+    ? (cab.mic as MicPosition)
+    : base.cab.mic;
 
   return {
     inputDb: clampTo('inputDb', raw.inputDb, base.inputDb),
@@ -134,6 +140,7 @@ export function clampAmp(input: unknown, base: AmpSettings): AmpSettings {
       model,
       presenceDb: clampTo('presenceDb', cab.presenceDb, base.cab.presenceDb),
       resonanceDb: clampTo('resonanceDb', cab.resonanceDb, base.cab.resonanceDb),
+      mic,
       width: clampTo('width', cab.width, base.cab.width),
     },
     delay: {
@@ -212,6 +219,7 @@ export function ampDiff(before: AmpSettings, after: AmpSettings): AmpChange[] {
   add('BIAS', before.drive.bias.toFixed(2), after.drive.bias.toFixed(2));
   add('CAB', onOff(before.cab.enabled), onOff(after.cab.enabled));
   add('CAB MODEL', before.cab.model, after.cab.model);
+  add('MIC', before.cab.mic, after.cab.mic);
   add('PRESENCE', db(before.cab.presenceDb), db(after.cab.presenceDb));
   add('RESO', db(before.cab.resonanceDb), db(after.cab.resonanceDb));
   add('WIDTH', pct(before.cab.width), pct(after.cab.width));

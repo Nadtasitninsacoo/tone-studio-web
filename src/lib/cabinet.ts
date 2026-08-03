@@ -343,11 +343,135 @@ export function cabinetById(id: CabinetId): CabinetModel {
 /** Impulse length. 24 ms at 48 kHz — long enough for the box, short enough to be cheap. */
 const IR_SECONDS = 0.024;
 
+/* --------------------------------------------------------------------------
+   Mic placement
+
+   Where the microphone sits in front of the speaker, which on a real session is
+   the single biggest tone decision after choosing the cabinet — and costs nothing
+   here, because it is baked into the impulse rather than added as nodes. Three
+   positions, no new convolvers, no new filters in the live graph.
+
+   All three are level-matched by the 1 kHz normalisation at the end of
+   `cabinetImpulse`, exactly as the cabinet models are: moving the mic is a change
+   of tone and nothing else, which is the only way an A/B between them means
+   anything. A Node check covers it.
+-------------------------------------------------------------------------- */
+
+export type MicPosition = 'center' | 'offAxis' | 'distant';
+
+export const MIC_POSITIONS: readonly MicPosition[] = ['center', 'offAxis', 'distant'];
+
+export const DEFAULT_MIC: MicPosition = 'center';
+
+export interface MicPlacement {
+  id: MicPosition;
+  label: string;
+  hint: string;
+  /**
+   * Multiplier on the model's presence peak.
+   *
+   * A speaker beams: the higher the frequency, the narrower the cone of it that
+   * leaves the dust cap. Moving off the cap is the strongest single thing you can
+   * do to a guitar cabinet's top end, and it is why "too bright" is a mic-position
+   * problem far more often than an EQ problem.
+   */
+  presenceScale: number;
+  /** Applied after the model's own curve, before the fizz-killing lowpass stages. */
+  shelves: readonly BiquadSpec[];
+}
+
+/* --------------------------------------------------------------------------
+   Why a placement is frequency response and nothing else.
+
+   The first two attempts also scaled and stretched the model's box reflections, on
+   the reasoning that stepping back raises the reflected sound against the direct
+   one. Both were measured and both were wrong, in the same way and for the same
+   underlying reason:
+
+   - at 1.5× amplitude and 1.6× delay, the american's first reflection landed at
+     0.58 ms — a comb notch at 868 Hz, beside the 1 kHz normalisation reference.
+     Normalising pinned the notch to unity and lifted the whole curve with it, so
+     `distant` measured **+2.5 dB brighter at 2.6 kHz than `center`**.
+   - backing off to 1.15× and 1.4× only moved which cabinets broke: the v30 went
+     +2.3 dB and the jazz +2.5 dB, because the stretch walks each model's own comb
+     onto a different part of the reference.
+
+   The physics says the same thing the measurement did. **Those reflections are off
+   the cabinet's own walls — they belong to the box, not to the microphone.** Moving
+   a mic back does not lengthen the inside of a 4x12. What distance really adds is
+   *room*: later (5–30 ms), more diffuse, and entirely outside a 24 ms impulse with
+   three taps in it. This model cannot represent a room, and pretending it can
+   produces a comb filter that no EQ afterwards removes — which is what the field
+   note above `reflections` has said all along.
+
+   So a placement is a frequency response. Shelves and a presence scale are
+   broadband and cannot notch, so they cannot do this. Room stays where it belongs:
+   the reverb send, which exists and is designed for it.
+-------------------------------------------------------------------------- */
+
+/**
+ * The three placements.
+ *
+ * **There is deliberately no pre-delay on the direct sound.** A mic half a metre
+ * back really does arrive ~1.5 ms late, and modelling that honestly would put a
+ * fixed 1.5 ms into the monitor path for a tone choice — latency the player pays
+ * for on every note while playing. Distance is expressed as the things distance
+ * actually changes in the frequency domain: proximity gone, air absorbed, room
+ * risen. The arrival time is the one part of the physics left out, on purpose.
+ */
+export const MIC_PLACEMENTS: readonly MicPlacement[] = [
+  {
+    id: 'center',
+    label: 'Center',
+    hint: 'On the dust cap, close. The brightest and most direct — the default voicing.',
+    presenceScale: 1,
+    shelves: [],
+  },
+  {
+    id: 'offAxis',
+    label: 'Off-axis',
+    hint: 'Angled at the cone edge. Softer top, same low end. The fix for a harsh amp.',
+    presenceScale: 0.6,
+    shelves: [{ kind: 'highshelf', hz: 3500, q: 0.7, gainDb: -4.5 }],
+  },
+  {
+    id: 'distant',
+    label: 'Distant',
+    hint: 'Half a metre back. Less bass, more room, more open — for cleans and space.',
+    /**
+     * The numbers here were measured into place, and the first attempt was wrong in a
+     * way worth recording: a −2.5 dB shelf at 6 kHz plus `presenceScale: 0.8` made
+     * `distant` come out **brighter** than `center` in the upper mids on two of the six
+     * cabinets — +0.3 dB at 2.6 kHz on the v30, +3.2 on the american.
+     *
+     * The cause is the 1 kHz normalisation, and it applies to anything added here. A
+     * shelf that grazes the reference pulls it down, normalising lifts the whole curve
+     * back, and everything *above* the shelf rises with it. So a placement is only as
+     * dark as it is relative to 1 kHz — cutting energy somewhere else and expecting the
+     * top to fall is exactly backwards. The corner came down to 4 kHz, where it acts on
+     * the band a guitar cab still has, and the presence scale came down with it.
+     */
+    presenceScale: 0.7,
+    shelves: [
+      // Proximity effect is a close-mic artefact. Step back and the low end goes with it.
+      { kind: 'lowshelf', hz: 150, q: 0.7, gainDb: -3 },
+      // Air absorbed over distance. Low enough to survive the normalisation above.
+      { kind: 'highshelf', hz: 4000, q: 0.7, gainDb: -3.5 },
+    ],
+  },
+];
+
+export function micPlacementById(id: MicPosition): MicPlacement {
+  return MIC_PLACEMENTS.find((mic) => mic.id === id) ?? MIC_PLACEMENTS[0];
+}
+
 export interface CabinetTweaks {
   /** Extra presence, dB. Lets one model cover bright and dark rooms. */
   presenceDb?: number;
   /** Extra low-end resonance, dB. */
   resonanceDb?: number;
+  /** Where the mic sits. Defaults to `center`, which is the models' own voicing. */
+  mic?: MicPosition;
 }
 
 /** Frequency the models are level-matched at. Mid-band, and where a guitar sits. */
@@ -377,6 +501,7 @@ export function cabinetImpulse(
   tweaks: CabinetTweaks = {},
 ): Float32Array<ArrayBuffer> {
   const cab = cabinetById(id);
+  const mic = micPlacementById(tweaks.mic ?? DEFAULT_MIC);
   const length = Math.max(64, Math.floor(sampleRate * IR_SECONDS));
   const ir = new Float32Array(length);
 
@@ -407,10 +532,19 @@ export function cabinetImpulse(
       kind: 'peaking',
       hz: cab.presenceHz,
       q: 1.4,
-      gainDb: cab.presenceDb + (tweaks.presenceDb ?? 0),
+      // The player's own presence tweak is *not* scaled by the mic. Scaling it would
+      // make the same knob do different amounts depending on a separate control,
+      // which is the thing a knob may never do.
+      gainDb: cab.presenceDb * mic.presenceScale + (tweaks.presenceDb ?? 0),
     },
     sampleRate,
   );
+
+  // Where the mic is, as the frequency response it produces. After the model's own
+  // curve and before the rolloff, though the order is arithmetic rather than taste:
+  // these are minimum-phase filters in series, so the magnitudes multiply whatever
+  // order they run in.
+  for (const shelf of mic.shelves) applyBiquad(ir, shelf, sampleRate);
 
   // The fizz killer. A single 2nd-order lowpass leaves far too much 8–16 kHz, and
   // that residue is the entire reason a direct signal sounds like a wasp.

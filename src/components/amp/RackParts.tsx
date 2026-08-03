@@ -31,10 +31,37 @@ export function Legend({ children }: { children: string }) {
 }
 
 /** One named group of controls. */
-export function Block({ name, children }: { name: string; children: ReactNode }) {
+/**
+ * A titled group of controls, with an optional line naming what is inside it.
+ *
+ * `contains` exists because the block names describe a **position in the chain** —
+ * "Front end", "Output" — and a reader who does not already know the chain cannot
+ * tell what is in them. That is not hypothetical: a careful reader went through this
+ * rack and reported the compressor and the limiter as *missing features*. Both are
+ * here, and have been all along; they are inside "Front end" and "Output".
+ *
+ * Naming the position is still right — it is what makes the column order legible as
+ * a signal path. The subtitle is the cheap half of the fix: keep the structural name,
+ * and say what it holds.
+ */
+export function Block({
+  name,
+  contains,
+  children,
+}: {
+  name: string;
+  /** The stages inside, in signal order. Shown under the title. */
+  contains?: string;
+  children: ReactNode;
+}) {
   return (
     <section className="rounded-lg border border-line bg-base p-2">
       <Legend>{name}</Legend>
+      {contains ? (
+        <p className="-mt-0.5 mb-1 font-mono text-[9px] leading-tight tracking-wide text-ink-3">
+          {contains}
+        </p>
+      ) : null}
       <div className="flex flex-col gap-1">{children}</div>
     </section>
   );

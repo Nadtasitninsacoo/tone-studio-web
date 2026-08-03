@@ -10,7 +10,7 @@ import { useAccent } from '@/hooks/useAccent';
 import { useAmpPresets } from '@/hooks/useAmpPresets';
 import { AMP_PRESETS, type AmpSettings } from '@/lib/ampFx';
 import { deleteAmpPreset, matchingPresetId, saveAmpPreset } from '@/lib/ampPresets';
-import { cabinetsFor } from '@/lib/cabinet';
+import { cabinetsFor, MIC_PLACEMENTS } from '@/lib/cabinet';
 import { GUITAR_LEXICON } from '@/lib/toneIntent';
 
 import {
@@ -348,7 +348,7 @@ export function AmpRack({
               )}
             </section>
 
-            <Block name="Front end">
+            <Block name="Front end" contains="Input trim · Gate · Compressor">
             <KnobRow>
               <Knob
                 label="Input"
@@ -428,7 +428,7 @@ export function AmpRack({
             {/* The old "Preamp" block drew the gain controls first and then explained
                 in prose that the EQ was upstream of them. Reading order now matches
                 the signal, so the note under it can be one line instead of three. */}
-            <Block name="Tone stack">
+            <Block name="Tone stack" contains="Bass · Mid · Treble — before the drive">
             <KnobRow>
               <Knob
                 label="Bass"
@@ -483,7 +483,7 @@ export function AmpRack({
 
           {/* ---- Column 2: the gain stages, then the speaker ----------------- */}
           <div className="flex flex-col gap-2.5">
-            <Block name="Drive">
+            <Block name="Drive" contains="Valve stages · Amount · Bias">
             <Row
               label="Drive"
               enabled={amp.drive.enabled}
@@ -543,7 +543,7 @@ export function AmpRack({
             </p>
             </Block>
 
-            <Block name="Cabinet">
+            <Block name="Cabinet" contains="Speaker · Mic position · Presence · Width">
             <Row
               label="Cabinet"
               enabled={amp.cab.enabled}
@@ -565,6 +565,29 @@ export function AmpRack({
                   style={amp.cab.model === cabinet.id ? selected : undefined}
                 >
                   {cabinet.label}
+                </button>
+              ))}
+            </div>
+            {/* Where the mic sits. Three chips on one row rather than a knob: it is a
+                choice between three named things, and it belongs directly under the
+                cabinet chips because it is the other half of the same decision — the
+                speaker and where you stand in front of it.
+
+                Costs nothing at run time. The placement is baked into the impulse, so
+                this adds no node and no per-sample work to a graph that already runs
+                six chains. */}
+            <div className="grid grid-cols-3 gap-1">
+              {MIC_PLACEMENTS.map((mic) => (
+                <button
+                  key={mic.id}
+                  type="button"
+                  disabled={!amp.cab.enabled}
+                  onClick={() => patch({ cab: { ...amp.cab, mic: mic.id } })}
+                  title={mic.hint}
+                  className="rounded border border-line px-1.5 py-1 text-[10px] font-medium text-ink-2 transition-colors duration-200 hover:text-ink disabled:pointer-events-none disabled:opacity-40"
+                  style={amp.cab.mic === mic.id ? selected : undefined}
+                >
+                  {mic.label}
                 </button>
               ))}
             </div>
@@ -610,7 +633,7 @@ export function AmpRack({
 
           {/* ---- Column 3: the parallel sends, then mastering ---------------- */}
           <div className="flex flex-col gap-2.5">
-            <Block name="Delay & reverb">
+            <Block name="Delay &amp; reverb" contains="Parallel sends off the cabinet">
             <Row
               label="Delay"
               enabled={amp.delay.enabled}
@@ -715,7 +738,7 @@ export function AmpRack({
             </KnobRow>
             </Block>
 
-            <Block name="Output">
+            <Block name="Output" contains="Output trim · Look-ahead limiter">
 <div className="mt-1 rounded-lg border border-line bg-base p-2">
               <Row
                 label="Limiter"

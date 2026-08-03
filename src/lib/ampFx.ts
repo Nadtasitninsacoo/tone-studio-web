@@ -57,7 +57,14 @@
 
 import { disconnectAll, makeParamSetter, tubeCurve } from '@/lib/audioGraph';
 import { makeBypass, type RigQuality } from '@/lib/bypass';
-import { cabinetImpulse, roomImpulse, type CabinetId, DEFAULT_CABINET } from '@/lib/cabinet';
+import {
+  cabinetImpulse,
+  roomImpulse,
+  type CabinetId,
+  type MicPosition,
+  DEFAULT_CABINET,
+  DEFAULT_MIC,
+} from '@/lib/cabinet';
 
 /** Module URL for the gate and limiter processors. */
 export const AMP_WORKLET_URL = '/worklets/amp-dsp-processor.js';
@@ -92,6 +99,15 @@ export interface AmpSettings {
     model: CabinetId;
     presenceDb: number;
     resonanceDb: number;
+    /**
+     * Where the mic sits in front of the speaker. See `MIC_PLACEMENTS`.
+     *
+     * Costs nothing at run time — it is baked into the impulse, so it adds no node
+     * and no per-sample work. On a real session it is the biggest tone decision
+     * after choosing the cabinet, and "too bright" is a mic-position problem far
+     * more often than an EQ problem.
+     */
+    mic: MicPosition;
     /** 0 = dual mono summed to centre, 1 = fully spread. */
     width: number;
   };
@@ -107,7 +123,14 @@ export const DEFAULT_AMP: AmpSettings = {
   comp: { enabled: false, thresholdDb: -20, ratio: 3 },
   tone: { bassDb: 2, midDb: 0, midHz: 700, trebleDb: 2 },
   drive: { enabled: true, amount: 0.35, stages: 2, bias: 0.18 },
-  cab: { enabled: true, model: DEFAULT_CABINET, presenceDb: 0, resonanceDb: 0, width: 0.35 },
+  cab: {
+    enabled: true,
+    model: DEFAULT_CABINET,
+    presenceDb: 0,
+    resonanceDb: 0,
+    mic: DEFAULT_MIC,
+    width: 0.35,
+  },
   delay: { enabled: false, timeSec: 0.34, feedback: 0.28, mix: 0.22 },
   reverb: { enabled: true, sizeSec: 1.6, mix: 0.18 },
   outputDb: 0,
@@ -122,7 +145,21 @@ export interface AmpPreset {
 }
 
 /** Deep-ish clone so a preset cannot be mutated by the UI editing live settings. */
-function withAmp(over: Partial<AmpSettings>): AmpSettings {
+/**
+ * A preset's overrides: every group optional, and partial *within* each group.
+ *
+ * `Partial<AmpSettings>` only made the top level optional, so each group a preset
+ * touched had to be written out in full — and adding one field to any group then
+ * broke every preset that mentioned it. This lets a preset say `cab: { mic: 'distant' }`
+ * and inherit the rest, which is what the merge below already did at run time.
+ */
+export type AmpOverride = {
+  [K in keyof AmpSettings]?: AmpSettings[K] extends object
+    ? Partial<AmpSettings[K]>
+    : AmpSettings[K];
+};
+
+function withAmp(over: AmpOverride): AmpSettings {
   return {
     ...DEFAULT_AMP,
     ...over,
@@ -460,19 +497,29 @@ export function createAmpChain(ctx: BaseAudioContext, settings: AmpSettings): Am
     setParam(postGain.gain, compensation);
 
     // ---- Cabinet ---------------------------------------------------------
-    const cabKey = `${next.cab.model}:${next.cab.presenceDb}:${next.cab.resonanceDb}`;
+    // The mic is in the key: it changes the impulse, so leaving it out would dial a
+    // control that silently did nothing until some other cab value happened to change.
+    const cabKey = `${next.cab.model}:${next.cab.mic}:${next.cab.presenceDb}:${next.cab.resonanceDb}`;
     if (next.cab.enabled && cabKey !== currentCab) {
       currentCab = cabKey;
       const left = cabinetImpulse(ctx.sampleRate, next.cab.model, {
         presenceDb: next.cab.presenceDb,
         resonanceDb: next.cab.resonanceDb,
+        mic: next.cab.mic,
       });
       // The right channel is the same cabinet heard slightly off-axis: a little
       // less presence. Two different curves, no delay, so a mono sum is a tone
       // change and never a cancellation.
+      //
+      // Both channels take the *same* mic position — that is where the player put
+      // the mic. The 2.5 dB offset stays a fixed relative difference because
+      // `presenceDb` here is a tweak, and `cabinetImpulse` does not scale tweaks by
+      // the placement. So the stereo spread is the same width at every position
+      // rather than collapsing as the placement darkens.
       const right = cabinetImpulse(ctx.sampleRate, next.cab.model, {
         presenceDb: next.cab.presenceDb - 2.5,
         resonanceDb: next.cab.resonanceDb + 0.5,
+        mic: next.cab.mic,
       });
 
       const bufferL = ctx.createBuffer(1, left.length, ctx.sampleRate);
